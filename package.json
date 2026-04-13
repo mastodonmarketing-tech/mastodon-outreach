@@ -6,7 +6,12 @@
     "get-accounts": "node scripts/get-ghl-linkedin-account.js",
     "test-gemini": "node scripts/test-gemini.js",
     "test-ghl": "node scripts/test-ghl-post.js",
-    "test-all": "npm run test-gemini && npm run test-ghl"
+    "test-all": "npm run test-gemini && npm run test-ghl",
+    "security:scan": "bash scripts/security/scan-repo.sh .",
+    "security:audit-repo": "bash scripts/security/audit-repo.sh",
+    "security:audit-deps": "bash scripts/security/audit-deps.sh",
+    "security:audit-mcp": "bash scripts/security/audit-mcp.sh",
+    "security:install-hooks": "bash scripts/security/install-hooks.sh"
   },
   "dependencies": {
     "dotenv": "^16.0.0",

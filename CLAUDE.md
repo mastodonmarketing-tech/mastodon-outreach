@@ -28,6 +28,14 @@ sheets/           - Google Sheets schema documentation
 slack/            - Slack message format documentation
 ```
 
+## Security
+
+- `.npmrc` blocks install scripts by default (`ignore-scripts=true`)
+- Git hooks silently prevent secret leaks in commits
+- Run `npm run security:scan` to audit a cloned repo
+- Run `npm run security:audit-repo -- <github-url>` to vet a repo before cloning
+- See SECURITY.md for incident response procedures
+
 ## Testing
 
 ```bash

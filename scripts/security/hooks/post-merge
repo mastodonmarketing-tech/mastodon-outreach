@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Silent post-merge hook: prints one warning line only if new dependencies were added.
+
+CHANGED=$(git diff HEAD@{1} HEAD --name-only -- package.json package-lock.json 2>/dev/null)
+[ -z "$CHANGED" ] && exit 0
+
+# Check if any dependencies were actually added (not just version bumps)
+ADDED=$(git diff HEAD@{1} HEAD -- package.json 2>/dev/null | grep -E '^\+.*"[^"]+"\s*:\s*"' | grep -v '^\+\+\+' | grep -v '"version"' | grep -v '"name"' | grep -v '"description"')
+
+if [ -n "$ADDED" ]; then
+  echo "[security] New dependencies detected -- review before running npm install"
+fi
+
+exit 0
