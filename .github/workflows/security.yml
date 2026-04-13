@@ -21,9 +21,17 @@ jobs:
         with:
           node-version: 22
       - run: npm ci --ignore-scripts
-      - run: npm audit --audit-level=high
+      # If this step fails: one of your npm packages has a known security
+      # vulnerability rated "high" or "critical". Run "npm audit" locally
+      # to see details, then "npm audit fix" to auto-update if possible.
+      - name: Check packages for known vulnerabilities
+        run: npm audit --audit-level=high
 
   secret-scan:
+    # If this job fails: a real password, API key, or token was found in
+    # your code. Check the job log to see which file and what type of
+    # secret. Remove it, move it to .env, and rotate the credential
+    # since it may already be exposed.
     name: Secret Scan
     runs-on: ubuntu-latest
     steps:

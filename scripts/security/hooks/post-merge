@@ -8,7 +8,16 @@ CHANGED=$(git diff HEAD@{1} HEAD --name-only -- package.json package-lock.json 2
 ADDED=$(git diff HEAD@{1} HEAD -- package.json 2>/dev/null | grep -E '^\+.*"[^"]+"\s*:\s*"' | grep -v '^\+\+\+' | grep -v '"version"' | grep -v '"name"' | grep -v '"description"')
 
 if [ -n "$ADDED" ]; then
-  echo "[security] New dependencies detected -- review before running npm install"
+  echo ""
+  echo "[security] Heads up -- new packages were added to this project."
+  echo ""
+  echo "Why this matters: New packages run code on your machine during install."
+  echo "Your .npmrc blocks their install scripts automatically, but you should"
+  echo "still glance at package.json to make sure the new packages look legit."
+  echo ""
+  echo "If a package needs its install scripts to work (you'll know because"
+  echo "something breaks), you can allow it with: npm rebuild <package-name>"
+  echo ""
 fi
 
 exit 0

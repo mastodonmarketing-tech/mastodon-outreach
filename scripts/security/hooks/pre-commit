@@ -23,43 +23,64 @@ for FILE in $STAGED_FILES; do
   # AWS Access Keys
   if grep -nE 'AKIA[0-9A-Z]{16}' "$FILE" 2>/dev/null | head -1 | read -r match; then
     LINE=$(echo "$match" | cut -d: -f1)
-    echo "BLOCKED: possible AWS access key in $FILE:$LINE"
+    echo "  Found in: $FILE (line $LINE)"
+    echo "  What: An AWS access key -- this is like a password to your Amazon cloud account."
+    echo ""
     FOUND=1
   fi
 
   # GitHub tokens
   if grep -nE 'gh[pos]_[A-Za-z0-9_]{36,}' "$FILE" 2>/dev/null | head -1 | read -r match; then
     LINE=$(echo "$match" | cut -d: -f1)
-    echo "BLOCKED: possible GitHub token in $FILE:$LINE"
+    echo "  Found in: $FILE (line $LINE)"
+    echo "  What: A GitHub token -- this gives access to your GitHub repos and account."
+    echo ""
     FOUND=1
   fi
 
   # Slack tokens
   if grep -nE 'xox[baprs]-[A-Za-z0-9\-]{10,}' "$FILE" 2>/dev/null | head -1 | read -r match; then
     LINE=$(echo "$match" | cut -d: -f1)
-    echo "BLOCKED: possible Slack token in $FILE:$LINE"
+    echo "  Found in: $FILE (line $LINE)"
+    echo "  What: A Slack token -- this could let someone read/send messages as you."
+    echo ""
     FOUND=1
   fi
 
   # Private keys
   if grep -nE '\-\-\-\-\-BEGIN[[:space:]]+(RSA|DSA|EC|OPENSSH|PGP)?[[:space:]]*PRIVATE KEY\-\-\-\-\-' "$FILE" 2>/dev/null | head -1 | read -r match; then
     LINE=$(echo "$match" | cut -d: -f1)
-    echo "BLOCKED: possible private key in $FILE:$LINE"
+    echo "  Found in: $FILE (line $LINE)"
+    echo "  What: A private encryption key -- this is like a master password for secure connections."
+    echo ""
     FOUND=1
   fi
 
   # Explicit password assignments in code (not comments)
   if grep -nE '(password|passwd|secret)[[:space:]]*[:=][[:space:]]*["\x27][^\"\x27]{8,}["\x27]' "$FILE" 2>/dev/null | grep -v '^\s*//' | grep -v '^\s*#' | head -1 | read -r match; then
     LINE=$(echo "$match" | cut -d: -f1)
-    echo "BLOCKED: possible hardcoded password in $FILE:$LINE"
+    echo "  Found in: $FILE (line $LINE)"
+    echo "  What: A hardcoded password -- passwords should never be saved directly in code."
+    echo ""
     FOUND=1
   fi
 done
 
 if [ "$FOUND" -eq 1 ]; then
+  echo "---"
+  echo "COMMIT BLOCKED -- a secret was found in your code."
   echo ""
-  echo "Commit blocked. Remove secrets and try again."
-  echo "False positive? Use: git commit --no-verify"
+  echo "Why this matters: If this gets pushed to GitHub, anyone can see it."
+  echo "Attackers scrape GitHub for exactly these kinds of leaked credentials."
+  echo ""
+  echo "What to do:"
+  echo "  1. Open the file(s) listed above"
+  echo "  2. Move the secret to your .env file (which is never uploaded)"
+  echo "  3. Replace the value in code with process.env.YOUR_VARIABLE_NAME"
+  echo "  4. Try your commit again"
+  echo ""
+  echo "If this is a false alarm (e.g. example/test data, not a real key):"
+  echo "  git commit --no-verify"
   exit 1
 fi
 
