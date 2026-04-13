@@ -1,0 +1,475 @@
+{
+  "name": "Mastodon LinkedIn Approve + Publish",
+  "flow": [
+    {
+      "id": 1,
+      "module": "slack:HookNewEvent",
+      "version": 2,
+      "parameters": {
+        "account": 0,
+        "event": "reaction_added"
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": { "x": 0, "y": 0 },
+        "restore": {
+          "parameters": {
+            "account": { "label": "Slack (connect your account after import)" },
+            "event": { "label": "Reaction Added" }
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "module": "builtin:BasicRouter",
+      "version": 1,
+      "parameters": {},
+      "mapper": null,
+      "metadata": {
+        "designer": { "x": 300, "y": 0 },
+        "restore": {}
+      },
+      "routes": [
+        {
+          "flow": [
+            {
+              "id": 3,
+              "filter": {
+                "name": "Reaction is approve",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{1.reaction}}",
+                      "o": "text:equal",
+                      "b": "white_check_mark"
+                    }
+                  ]
+                ]
+              },
+              "module": "regexp:AdvancedParser",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "text": "{{1.text}}",
+                "pattern": "Row ID: (\\d+)",
+                "global": false,
+                "multiline": false,
+                "sensitive": true,
+                "continueWhenNoRes": false
+              },
+              "metadata": {
+                "designer": { "x": 600, "y": -300 },
+                "restore": {}
+              }
+            },
+            {
+              "id": 4,
+              "module": "google-sheets:filterRows",
+              "version": 2,
+              "parameters": {
+                "__IMTCONN__": 0
+              },
+              "mapper": {
+                "mode": "map",
+                "spreadsheetId": "{{GOOGLE_SHEETS_ID}}",
+                "sheetId": "Content Queue",
+                "tableFirstRow": "A1:Z1",
+                "includesHeaders": true,
+                "sortOrder": "asc",
+                "limit": 1,
+                "filter": [
+                  {
+                    "a": "A",
+                    "o": "text:notequal",
+                    "b": ""
+                  }
+                ],
+                "insertUnformatted": false
+              },
+              "metadata": {
+                "designer": { "x": 900, "y": -300 },
+                "restore": {
+                  "parameters": {
+                    "__IMTCONN__": { "label": "Google Sheets (connect after import)" }
+                  }
+                }
+              }
+            },
+            {
+              "id": 5,
+              "module": "http:ActionSendData",
+              "version": 3,
+              "parameters": {
+                "handleErrors": false,
+                "useNewZLibDeCompress": true
+              },
+              "mapper": {
+                "url": "https://services.leadconnectorhq.com/social-media-posting/{{GHL_LOCATION_ID}}/posts",
+                "method": "post",
+                "headers": [
+                  { "name": "Authorization", "value": "Bearer {{GHL_API_KEY}}" },
+                  { "name": "Version", "value": "2021-07-28" }
+                ],
+                "qs": [],
+                "bodyType": "raw",
+                "contentType": "application/json",
+                "data": "{\"accountIds\":[\"{{GHL_LINKEDIN_ACCOUNT_ID}}\"],\"summary\":\"{{4.col_F}}\",\"scheduleDate\":\"{{formatDate(addDays(now; 1); \"YYYY-MM-DD\")}}T13:00:00.000Z\",\"status\":\"scheduled\"}",
+                "serializeUrl": false,
+                "shareCookies": false,
+                "parseResponse": true,
+                "followRedirect": true,
+                "useQuerystring": false,
+                "followAllRedirects": false,
+                "rejectUnauthorized": true,
+                "gzip": true,
+                "useMtls": false,
+                "authUser": "",
+                "authPass": "",
+                "timeout": "",
+                "ca": ""
+              },
+              "metadata": {
+                "designer": { "x": 1200, "y": -300 },
+                "restore": {
+                  "parameters": {
+                    "method": { "label": "POST" },
+                    "bodyType": { "label": "Raw" },
+                    "contentType": { "label": "JSON (application/json)" }
+                  }
+                }
+              }
+            },
+            {
+              "id": 6,
+              "module": "json:ParseJSON",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "json": "{{5.data}}"
+              },
+              "metadata": {
+                "designer": { "x": 1500, "y": -300 },
+                "restore": {}
+              }
+            },
+            {
+              "id": 7,
+              "module": "google-sheets:updateRow",
+              "version": 2,
+              "parameters": {
+                "__IMTCONN__": 0
+              },
+              "mapper": {
+                "mode": "map",
+                "spreadsheetId": "{{GOOGLE_SHEETS_ID}}",
+                "sheetId": "Content Queue",
+                "tableFirstRow": "A1:Z1",
+                "rowNumber": "{{3.1}}",
+                "col_J": "Scheduled",
+                "col_K": "{{6._id}}",
+                "col_L": "{{formatDate(addDays(now; 1); \"YYYY-MM-DD\")}}T08:00:00",
+                "insertUnformatted": false,
+                "valueInputOption": "USER_ENTERED"
+              },
+              "metadata": {
+                "designer": { "x": 1800, "y": -300 },
+                "restore": {
+                  "parameters": {
+                    "__IMTCONN__": { "label": "Google Sheets (connect after import)" }
+                  }
+                }
+              }
+            },
+            {
+              "id": 8,
+              "module": "slack:ActionCreateMessage",
+              "version": 2,
+              "parameters": {
+                "account": 0
+              },
+              "mapper": {
+                "type": "im",
+                "channelId": "{{SLACK_APPROVAL_CHANNEL}}",
+                "text": ":white_check_mark: Scheduled for {{formatDate(addDays(now; 1); \"dddd, MMMM D\")}} at 8:00 AM CT. GHL Post ID: {{6._id}}",
+                "parse": true,
+                "linkNames": true,
+                "iconType": "none"
+              },
+              "metadata": {
+                "designer": { "x": 2100, "y": -300 },
+                "restore": {
+                  "parameters": {
+                    "account": { "label": "Slack (connect after import)" }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 9,
+              "filter": {
+                "name": "Reaction is edit",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{1.reaction}}",
+                      "o": "text:equal",
+                      "b": "pencil"
+                    }
+                  ]
+                ]
+              },
+              "module": "regexp:AdvancedParser",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "text": "{{1.text}}",
+                "pattern": "Row ID: (\\d+)",
+                "global": false,
+                "multiline": false,
+                "sensitive": true,
+                "continueWhenNoRes": false
+              },
+              "metadata": {
+                "designer": { "x": 600, "y": 0 },
+                "restore": {}
+              }
+            },
+            {
+              "id": 10,
+              "module": "google-sheets:filterRows",
+              "version": 2,
+              "parameters": {
+                "__IMTCONN__": 0
+              },
+              "mapper": {
+                "mode": "map",
+                "spreadsheetId": "{{GOOGLE_SHEETS_ID}}",
+                "sheetId": "Content Queue",
+                "tableFirstRow": "A1:Z1",
+                "includesHeaders": true,
+                "sortOrder": "asc",
+                "limit": 1,
+                "filter": [
+                  {
+                    "a": "A",
+                    "o": "text:notequal",
+                    "b": ""
+                  }
+                ],
+                "insertUnformatted": false
+              },
+              "metadata": {
+                "designer": { "x": 900, "y": 0 },
+                "restore": {
+                  "parameters": {
+                    "__IMTCONN__": { "label": "Google Sheets (connect after import)" }
+                  }
+                }
+              }
+            },
+            {
+              "id": 11,
+              "module": "http:ActionSendData",
+              "version": 3,
+              "parameters": {
+                "handleErrors": false,
+                "useNewZLibDeCompress": true
+              },
+              "mapper": {
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key={{GEMINI_API_KEY}}",
+                "method": "post",
+                "headers": [],
+                "qs": [],
+                "bodyType": "raw",
+                "contentType": "application/json",
+                "data": "{\"system_instruction\":{\"parts\":[{\"text\":\"You are Alex's LinkedIn content strategist for Mastodon Marketing. Write as Alex, VP of Marketing & Sales. Direct, expert, first person. No em dashes. No corporate speak. No hollow phrases. No passive voice. Return post text only.\"}]},\"contents\":[{\"parts\":[{\"text\":\"ORIGINAL DRAFT:\\n{{10.col_F}}\\n\\nEDIT INSTRUCTION FROM ALEX:\\n{{1.text}}\\n\\nRevise the post according to Alex's instruction. Keep everything else the same. Return post text only.\"}]}],\"generationConfig\":{\"temperature\":0.6,\"maxOutputTokens\":800}}",
+                "serializeUrl": false,
+                "shareCookies": false,
+                "parseResponse": true,
+                "followRedirect": true,
+                "useQuerystring": false,
+                "followAllRedirects": false,
+                "rejectUnauthorized": true,
+                "gzip": true,
+                "useMtls": false,
+                "authUser": "",
+                "authPass": "",
+                "timeout": "",
+                "ca": ""
+              },
+              "metadata": {
+                "designer": { "x": 1200, "y": 0 },
+                "restore": {
+                  "parameters": {
+                    "method": { "label": "POST" },
+                    "bodyType": { "label": "Raw" },
+                    "contentType": { "label": "JSON (application/json)" }
+                  }
+                }
+              }
+            },
+            {
+              "id": 12,
+              "module": "google-sheets:updateRow",
+              "version": 2,
+              "parameters": {
+                "__IMTCONN__": 0
+              },
+              "mapper": {
+                "mode": "map",
+                "spreadsheetId": "{{GOOGLE_SHEETS_ID}}",
+                "sheetId": "Content Queue",
+                "tableFirstRow": "A1:Z1",
+                "rowNumber": "{{9.1}}",
+                "col_F": "{{11.data.candidates[0].content.parts[0].text}}",
+                "col_J": "Pending Review",
+                "insertUnformatted": false,
+                "valueInputOption": "USER_ENTERED"
+              },
+              "metadata": {
+                "designer": { "x": 1500, "y": 0 },
+                "restore": {
+                  "parameters": {
+                    "__IMTCONN__": { "label": "Google Sheets (connect after import)" }
+                  }
+                }
+              }
+            },
+            {
+              "id": 13,
+              "module": "slack:ActionCreateMessage",
+              "version": 2,
+              "parameters": {
+                "account": 0
+              },
+              "mapper": {
+                "type": "im",
+                "channelId": "{{SLACK_APPROVAL_CHANNEL}}",
+                "text": "*Revised LinkedIn Draft* — Row {{9.1}}\n\n*Bucket:* {{10.col_D}}\n\n---\n{{11.data.candidates[0].content.parts[0].text}}\n---\n\nReact with:\n:white_check_mark: — Approve and schedule\n:pencil: — Request another edit\n:x: — Reject\n\n_Row ID: {{9.1}} | Bucket: {{10.col_D}}_",
+                "parse": true,
+                "linkNames": true,
+                "iconType": "none"
+              },
+              "metadata": {
+                "designer": { "x": 1800, "y": 0 },
+                "restore": {
+                  "parameters": {
+                    "account": { "label": "Slack (connect after import)" }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 14,
+              "filter": {
+                "name": "Reaction is reject",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{1.reaction}}",
+                      "o": "text:equal",
+                      "b": "x"
+                    }
+                  ]
+                ]
+              },
+              "module": "regexp:AdvancedParser",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "text": "{{1.text}}",
+                "pattern": "Row ID: (\\d+)",
+                "global": false,
+                "multiline": false,
+                "sensitive": true,
+                "continueWhenNoRes": false
+              },
+              "metadata": {
+                "designer": { "x": 600, "y": 300 },
+                "restore": {}
+              }
+            },
+            {
+              "id": 15,
+              "module": "google-sheets:updateRow",
+              "version": 2,
+              "parameters": {
+                "__IMTCONN__": 0
+              },
+              "mapper": {
+                "mode": "map",
+                "spreadsheetId": "{{GOOGLE_SHEETS_ID}}",
+                "sheetId": "Content Queue",
+                "tableFirstRow": "A1:Z1",
+                "rowNumber": "{{14.1}}",
+                "col_J": "Rejected",
+                "insertUnformatted": false,
+                "valueInputOption": "USER_ENTERED"
+              },
+              "metadata": {
+                "designer": { "x": 900, "y": 300 },
+                "restore": {
+                  "parameters": {
+                    "__IMTCONN__": { "label": "Google Sheets (connect after import)" }
+                  }
+                }
+              }
+            },
+            {
+              "id": 16,
+              "module": "slack:ActionCreateMessage",
+              "version": 2,
+              "parameters": {
+                "account": 0
+              },
+              "mapper": {
+                "type": "im",
+                "channelId": "{{SLACK_APPROVAL_CHANNEL}}",
+                "text": ":x: Post rejected and archived. (Row {{14.1}})",
+                "parse": true,
+                "linkNames": true,
+                "iconType": "none"
+              },
+              "metadata": {
+                "designer": { "x": 1200, "y": 300 },
+                "restore": {
+                  "parameters": {
+                    "account": { "label": "Slack (connect after import)" }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "version": 1,
+    "zone": "us2.make.com",
+    "instant": true,
+    "designer": {
+      "orphans": []
+    },
+    "scenario": {
+      "dlq": false,
+      "dataloss": false,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "roundtrips": 1,
+      "sequential": false,
+      "confidential": false,
+      "freshVariables": false,
+      "autoCommitTriggerLast": true
+    }
+  }
+}

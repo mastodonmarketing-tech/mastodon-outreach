@@ -1,0 +1,415 @@
+{
+  "name": "Mastodon LinkedIn Content Engine",
+  "flow": [
+    {
+      "id": 1,
+      "module": "rss:ActionReadArticles",
+      "version": 4,
+      "parameters": {
+        "include": ""
+      },
+      "mapper": {
+        "url": "https://news.google.com/rss/search?q=contractor+marketing+digital&hl=en-US",
+        "maxResults": 5,
+        "gzip": true
+      },
+      "metadata": {
+        "designer": { "x": 0, "y": 0 },
+        "restore": {
+          "parameters": {
+            "include": { "label": "Empty" }
+          }
+        },
+        "expect": [
+          { "name": "url", "type": "url", "label": "URL" },
+          { "name": "maxResults", "type": "number", "label": "Maximum number of returned items" }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "module": "rss:ActionReadArticles",
+      "version": 4,
+      "parameters": {
+        "include": ""
+      },
+      "mapper": {
+        "url": "https://news.google.com/rss/search?q=local+SEO+Google+algorithm+update&hl=en-US",
+        "maxResults": 5,
+        "gzip": true
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": -150 },
+        "restore": {
+          "parameters": {
+            "include": { "label": "Empty" }
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "module": "rss:ActionReadArticles",
+      "version": 4,
+      "parameters": {
+        "include": ""
+      },
+      "mapper": {
+        "url": "https://news.google.com/rss/search?q=restoration+construction+industry+news&hl=en-US",
+        "maxResults": 5,
+        "gzip": true
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 0 },
+        "restore": {
+          "parameters": {
+            "include": { "label": "Empty" }
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "module": "rss:ActionReadArticles",
+      "version": 4,
+      "parameters": {
+        "include": ""
+      },
+      "mapper": {
+        "url": "https://news.google.com/rss/search?q=Google+Ads+local+business+marketing&hl=en-US",
+        "maxResults": 5,
+        "gzip": true
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 150 },
+        "restore": {
+          "parameters": {
+            "include": { "label": "Empty" }
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "module": "util:TextAggregator",
+      "version": 1,
+      "parameters": {
+        "feeder": 1
+      },
+      "mapper": {
+        "text": "HEADLINE: {{1.title}} | URL: {{1.url}} | DATE: {{1.pubDate}}\nHEADLINE: {{2.title}} | URL: {{2.url}} | DATE: {{2.pubDate}}\nHEADLINE: {{3.title}} | URL: {{3.url}} | DATE: {{3.pubDate}}\nHEADLINE: {{4.title}} | URL: {{4.url}} | DATE: {{4.pubDate}}"
+      },
+      "metadata": {
+        "designer": { "x": 600, "y": 0 },
+        "restore": {}
+      }
+    },
+    {
+      "id": 6,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": {
+        "handleErrors": false,
+        "useNewZLibDeCompress": true
+      },
+      "mapper": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key={{GEMINI_API_KEY}}",
+        "method": "post",
+        "headers": [],
+        "qs": [],
+        "bodyType": "raw",
+        "contentType": "application/json",
+        "data": "{\"contents\":[{\"parts\":[{\"text\":\"You are a content intelligence system for Mastodon Marketing, a digital marketing agency specializing in construction, real estate, and local service businesses in the US.\\n\\nYou will receive a list of recent news items and RSS feed entries. Your job is to:\\n\\n1. Score each item 1-10 for:\\n   - ICP RELEVANCE: How relevant is this to GCs, restoration franchise owners, or local service business operators?\\n   - CONTENT FIT: How well does this fit one of the four content buckets (Growth/Authority/Conversion/Personal)?\\n   - NEWSJACKING URGENCY: If this is time-sensitive news, score urgency 1-10 (10 = must post within 24h)\\n\\n2. Select the SINGLE BEST item to post about today\\n\\n3. For the selected item, output:\\n   - TOPIC: One sentence describing the topic\\n   - SOURCE: The source URL\\n   - BUCKET: Which content bucket (GROWTH / AUTHORITY / CONVERSION / PERSONAL)\\n   - URGENCY: Score 1-10\\n   - ANGLE: One paragraph explaining the specific angle Mastodon Marketing should take\\n   - HOOK_IDEAS: Three possible first-line hooks (each under 15 words)\\n\\nOUTPUT FORMAT: Return valid JSON only. No markdown. No preamble.\\n\\n{\\\"selected_item\\\":{\\\"topic\\\":\\\"\\\",\\\"source\\\":\\\"\\\",\\\"bucket\\\":\\\"\\\",\\\"urgency\\\":0,\\\"angle\\\":\\\"\\\",\\\"hook_ideas\\\":[\\\"\\\",\\\"\\\",\\\"\\\"]},\\\"all_items_scored\\\":[{\\\"headline\\\":\\\"\\\",\\\"icp_relevance\\\":0,\\\"content_fit\\\":0,\\\"newsjacking_urgency\\\":0}]}\\n\\nNEWS ITEMS TO ANALYZE:\\n{{5.text}}\"}]}],\"generationConfig\":{\"temperature\":0.3,\"maxOutputTokens\":1000}}",
+        "serializeUrl": false,
+        "shareCookies": false,
+        "parseResponse": true,
+        "followRedirect": true,
+        "useQuerystring": false,
+        "followAllRedirects": false,
+        "rejectUnauthorized": true,
+        "gzip": true,
+        "useMtls": false,
+        "authUser": "",
+        "authPass": "",
+        "timeout": "",
+        "ca": ""
+      },
+      "metadata": {
+        "designer": { "x": 900, "y": 0 },
+        "restore": {
+          "parameters": {
+            "method": { "label": "POST" },
+            "bodyType": { "label": "Raw" },
+            "contentType": { "label": "JSON (application/json)" }
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "module": "json:ParseJSON",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "json": "{{6.data.candidates[0].content.parts[0].text}}"
+      },
+      "metadata": {
+        "designer": { "x": 1200, "y": 0 },
+        "restore": {}
+      }
+    },
+    {
+      "id": 8,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": {
+        "handleErrors": false,
+        "useNewZLibDeCompress": true
+      },
+      "mapper": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key={{GEMINI_API_KEY}}",
+        "method": "post",
+        "headers": [],
+        "qs": [],
+        "bodyType": "raw",
+        "contentType": "application/json",
+        "data": "{\"system_instruction\":{\"parts\":[{\"text\":\"You are Alex's LinkedIn content strategist for Mastodon Marketing. A Houston-based digital marketing agency specializing in construction, real estate, and local service businesses.\\n\\nIDENTITY: You write as Alex, VP of Marketing & Sales at Mastodon Marketing. First person.\\n\\nVOICE RULES:\\n- Direct and expert. No corporate speak. No passive voice.\\n- No em dashes anywhere in the output.\\n- Conversational but authoritative.\\n- No hollow phrases.\\n\\nTARGET AUDIENCE (ICP): General contractors, restoration franchise owners, property developers, local service business operators.\\n\\nCONTENT RULES:\\n- Real numbers and specific situations always beat general claims\\n- Reference Mastodon Marketing actual client work when relevant\\n- Only Mastodon Marketing could have written this post\\n- Max 2 hashtags at the very end\\n- Max 5 bullet points if using a list format\\n- Do NOT end with a generic question\\n\\nHOOK RULE: Write the full post body first. Then find the single most interesting line and move it to line 1.\\n\\nOUTPUT FORMAT: Return the post text only. No preamble. Just the post.\"}]},\"contents\":[{\"parts\":[{\"text\":\"CONTENT BUCKET: {{7.selected_item.bucket}}\\n\\nTOPIC: {{7.selected_item.topic}}\\n\\nSOURCE: {{7.selected_item.source}}\\n\\nANGLE TO TAKE: {{7.selected_item.angle}}\\n\\nWrite a LinkedIn post for Mastodon Marketing following all voice and format rules.\"}]}],\"generationConfig\":{\"temperature\":0.8,\"maxOutputTokens\":800}}",
+        "serializeUrl": false,
+        "shareCookies": false,
+        "parseResponse": true,
+        "followRedirect": true,
+        "useQuerystring": false,
+        "followAllRedirects": false,
+        "rejectUnauthorized": true,
+        "gzip": true,
+        "useMtls": false,
+        "authUser": "",
+        "authPass": "",
+        "timeout": "",
+        "ca": ""
+      },
+      "metadata": {
+        "designer": { "x": 1500, "y": 0 },
+        "restore": {
+          "parameters": {
+            "method": { "label": "POST" },
+            "bodyType": { "label": "Raw" },
+            "contentType": { "label": "JSON (application/json)" }
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": {
+        "handleErrors": false,
+        "useNewZLibDeCompress": true
+      },
+      "mapper": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={{GEMINI_API_KEY}}",
+        "method": "post",
+        "headers": [],
+        "qs": [],
+        "bodyType": "raw",
+        "contentType": "application/json",
+        "data": "{\"contents\":[{\"parts\":[{\"text\":\"You are a LinkedIn content quality control system for Mastodon Marketing.\\n\\nScore the draft on 7 dimensions (each 1-10):\\n1. HOOK_QUALITY (weight: 25%)\\n2. DWELL_WORTHINESS (weight: 20%)\\n3. EMBEDDING_UNIQUENESS (weight: 20%)\\n4. VOICE_MATCH (weight: 15%)\\n5. ICP_PRECISION (weight: 10%)\\n6. CTA_ALIGNMENT (weight: 5%)\\n7. LINKEDIN_SEO (weight: 5%)\\n\\nPASS THRESHOLD: Weighted average >= 7.5\\nREGENERATE THRESHOLD: 5.0 - 7.4\\nMANUAL REWRITE: < 5.0\\n\\nReturn ONLY valid JSON with scores, weighted_average, verdict, feedback, strongest_dimension, weakest_dimension.\\n\\nPOST TO SCORE:\\n{{8.data.candidates[0].content.parts[0].text}}\"}]}],\"generationConfig\":{\"temperature\":0.1,\"maxOutputTokens\":500}}",
+        "serializeUrl": false,
+        "shareCookies": false,
+        "parseResponse": true,
+        "followRedirect": true,
+        "useQuerystring": false,
+        "followAllRedirects": false,
+        "rejectUnauthorized": true,
+        "gzip": true,
+        "useMtls": false,
+        "authUser": "",
+        "authPass": "",
+        "timeout": "",
+        "ca": ""
+      },
+      "metadata": {
+        "designer": { "x": 1800, "y": 0 },
+        "restore": {
+          "parameters": {
+            "method": { "label": "POST" },
+            "bodyType": { "label": "Raw" },
+            "contentType": { "label": "JSON (application/json)" }
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "module": "json:ParseJSON",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "json": "{{9.data.candidates[0].content.parts[0].text}}"
+      },
+      "metadata": {
+        "designer": { "x": 2100, "y": 0 },
+        "restore": {}
+      }
+    },
+    {
+      "id": 11,
+      "module": "builtin:BasicRouter",
+      "version": 1,
+      "parameters": {},
+      "mapper": null,
+      "metadata": {
+        "designer": { "x": 2400, "y": 0 },
+        "restore": {}
+      },
+      "routes": [
+        {
+          "flow": [
+            {
+              "id": 12,
+              "filter": {
+                "name": "QC passed or needs regeneration",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{10.verdict}}",
+                      "o": "text:notequal",
+                      "b": "MANUAL_REWRITE"
+                    }
+                  ]
+                ]
+              },
+              "module": "google-sheets:addRow",
+              "version": 2,
+              "parameters": {
+                "__IMTCONN__": 0
+              },
+              "mapper": {
+                "mode": "map",
+                "spreadsheetId": "{{GOOGLE_SHEETS_ID}}",
+                "sheetId": "Content Queue",
+                "tableFirstRow": "A1:Z1",
+                "col_A": "{{formatDate(now; \"YYYY-MM-DD\")}}",
+                "col_B": "{{7.selected_item.topic}}",
+                "col_C": "{{7.selected_item.source}}",
+                "col_D": "{{7.selected_item.bucket}}",
+                "col_E": "{{7.selected_item.urgency}}",
+                "col_F": "{{8.data.candidates[0].content.parts[0].text}}",
+                "col_G": "{{10.weighted_average}}",
+                "col_H": "{{10.verdict}}",
+                "col_I": "{{10.feedback}}",
+                "col_J": "Pending Review",
+                "insertUnformatted": false,
+                "valueInputOption": "USER_ENTERED",
+                "insertDataOption": "INSERT_ROWS"
+              },
+              "metadata": {
+                "designer": { "x": 2700, "y": -100 },
+                "restore": {
+                  "parameters": {
+                    "__IMTCONN__": { "label": "Google Sheets (connect your account after import)" }
+                  }
+                }
+              }
+            },
+            {
+              "id": 13,
+              "module": "slack:ActionCreateMessage",
+              "version": 2,
+              "parameters": {
+                "account": 0
+              },
+              "mapper": {
+                "type": "im",
+                "channelId": "{{SLACK_APPROVAL_CHANNEL}}",
+                "text": "*New LinkedIn Draft Ready* — Row {{12.rowNumber}}\n\n*Bucket:* {{7.selected_item.bucket}} | *QC Score:* {{10.weighted_average}}/10 | *Urgency:* {{7.selected_item.urgency}}/10\n\n---\n{{8.data.candidates[0].content.parts[0].text}}\n---\n\n*QC Feedback:* {{10.feedback}}\n\n*Source:* {{7.selected_item.source}}\n\nReact with:\n:white_check_mark: — Approve and schedule\n:pencil: — Request edit (reply with your instruction)\n:x: — Reject\n\n_Row ID: {{12.rowNumber}} | Bucket: {{7.selected_item.bucket}}_",
+                "parse": true,
+                "linkNames": true,
+                "iconType": "none"
+              },
+              "metadata": {
+                "designer": { "x": 3000, "y": -100 },
+                "restore": {
+                  "parameters": {
+                    "account": { "label": "Slack (connect your account after import)" }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 14,
+              "filter": {
+                "name": "QC failed: manual rewrite needed",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{10.verdict}}",
+                      "o": "text:equal",
+                      "b": "MANUAL_REWRITE"
+                    }
+                  ]
+                ]
+              },
+              "module": "google-sheets:addRow",
+              "version": 2,
+              "parameters": {
+                "__IMTCONN__": 0
+              },
+              "mapper": {
+                "mode": "map",
+                "spreadsheetId": "{{GOOGLE_SHEETS_ID}}",
+                "sheetId": "Content Queue",
+                "tableFirstRow": "A1:Z1",
+                "col_A": "{{formatDate(now; \"YYYY-MM-DD\")}}",
+                "col_B": "{{7.selected_item.topic}}",
+                "col_C": "{{7.selected_item.source}}",
+                "col_D": "{{7.selected_item.bucket}}",
+                "col_E": "{{7.selected_item.urgency}}",
+                "col_F": "{{8.data.candidates[0].content.parts[0].text}}",
+                "col_G": "{{10.weighted_average}}",
+                "col_H": "{{10.verdict}}",
+                "col_I": "{{10.feedback}}",
+                "col_J": "Manual Rewrite Needed",
+                "insertUnformatted": false,
+                "valueInputOption": "USER_ENTERED",
+                "insertDataOption": "INSERT_ROWS"
+              },
+              "metadata": {
+                "designer": { "x": 2700, "y": 150 },
+                "restore": {
+                  "parameters": {
+                    "__IMTCONN__": { "label": "Google Sheets (connect your account after import)" }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "version": 1,
+    "zone": "us2.make.com",
+    "instant": false,
+    "designer": {
+      "orphans": []
+    },
+    "scenario": {
+      "dlq": false,
+      "dataloss": false,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "roundtrips": 1,
+      "sequential": false,
+      "confidential": false,
+      "freshVariables": false,
+      "autoCommitTriggerLast": true
+    }
+  }
+}
