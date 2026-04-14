@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { decode as base64Decode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -211,14 +212,12 @@ ${draft}`;
             Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
           );
 
-          // Decode base64 to Uint8Array
-          const binaryStr = atob(imageBytes);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+          // Decode base64 to Uint8Array using Deno standard library
+          const bytes = base64Decode(imageBytes);
 
           const { error: uploadErr } = await supabaseStorage.storage
             .from("post-images")
-            .upload(fileName, bytes, { contentType: "image/png" });
+            .upload(fileName, bytes, { contentType: "image/png", upsert: true });
 
           if (!uploadErr) {
             const { data: urlData } = supabaseStorage.storage
@@ -228,9 +227,12 @@ ${draft}`;
           }
         }
       } catch (imgErr) {
-        console.error("Image generation failed:", imgErr);
+        console.error("Image generation failed:", (imgErr as Error).message);
         // Continue without image - not a blocker
       }
+    } else {
+      console.log("No [IMAGE: ...] found in draft");
+    }
     }
 
     // 6. Insert into Supabase
