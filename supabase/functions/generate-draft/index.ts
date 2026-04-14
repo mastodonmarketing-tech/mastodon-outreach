@@ -6,15 +6,27 @@ const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const RSS_FEEDS = [
-  "https://news.google.com/rss/search?q=contractor+marketing+digital&hl=en-US",
-  "https://news.google.com/rss/search?q=local+SEO+Google+algorithm+update&hl=en-US",
-  "https://news.google.com/rss/search?q=restoration+construction+industry+news&hl=en-US",
-  "https://news.google.com/rss/search?q=Google+Ads+local+business+marketing&hl=en-US",
+  // AI implementation for businesses
+  "https://news.google.com/rss/search?q=AI+implementation+small+business+automation&hl=en-US",
+  "https://news.google.com/rss/search?q=artificial+intelligence+business+operations+ROI&hl=en-US",
+  // Digital marketing
+  "https://news.google.com/rss/search?q=digital+marketing+trends+local+business&hl=en-US",
+  "https://news.google.com/rss/search?q=Google+Ads+local+SEO+algorithm+update&hl=en-US",
+  // Website design + CRO
+  "https://news.google.com/rss/search?q=website+conversion+rate+optimization+design&hl=en-US",
+  "https://news.google.com/rss/search?q=landing+page+optimization+lead+generation&hl=en-US",
+  // Construction/contractor specific
+  "https://news.google.com/rss/search?q=contractor+marketing+construction+industry&hl=en-US",
 ];
 
 const SYSTEM_PROMPT = `You are Alex's LinkedIn content strategist for Mastodon Marketing, a Houston-based digital marketing agency specializing in construction, real estate, and local service businesses.
 
 IDENTITY: You write as Alex, VP of Marketing & Sales at Mastodon Marketing. First person.
+
+TOPIC MIX: Rotate between these three pillars. Do NOT write about the same pillar twice in a row.
+1. AI IMPLEMENTATION: How businesses (especially contractors, service companies) can use AI to save time, automate operations, and grow. Practical use cases, not hype.
+2. DIGITAL MARKETING: SEO, Google Ads, social media, content strategy. Tactical advice for local businesses. What is working right now.
+3. WEBSITE DESIGN + CRO: Conversion rate optimization, landing pages, lead generation, UX for service businesses. Specific tweaks that increase leads.
 
 WRITING STYLE:
 - 9th-grade reading level. Short sentences. Simple words.
