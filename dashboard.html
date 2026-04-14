@@ -300,7 +300,8 @@ function renderDrafts() {
         <div class="draft-text">${clean}</div>
       </div>
 
-      ${imageSuggestion ? `<div class="image-suggestion">${escapeHtml(imageSuggestion)}</div>` : ''}
+      ${row.image_url ? `<div style="padding:0 20px;margin-top:12px"><img src="${escapeHtml(row.image_url)}" style="width:100%;border-radius:10px;border:1px solid #e0e0e0" alt="Post image"></div>` : ''}
+      ${imageSuggestion && !row.image_url ? `<div class="image-suggestion">${escapeHtml(imageSuggestion)}</div>` : ''}
 
       ${row.source_url ? `<div class="source"><a href="${escapeHtml(row.source_url)}" target="_blank">&#x2197; Source article</a></div>` : ''}
 

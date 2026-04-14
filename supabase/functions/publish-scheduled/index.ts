@@ -21,7 +21,7 @@ serve(async (req) => {
     const now = new Date().toISOString();
     const { data: due, error } = await supabase
       .from("linkedin_drafts")
-      .select("id, draft")
+      .select("id, draft, image_url")
       .eq("status", "Scheduled")
       .not("scheduled_for", "is", null)
       .lte("scheduled_for", now);
@@ -42,7 +42,7 @@ serve(async (req) => {
         const webhookRes = await fetch(MAKE_WEBHOOK, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ draft: cleanDraft }),
+          body: JSON.stringify({ draft: cleanDraft, image_url: post.image_url || "" }),
         });
 
         if (!webhookRes.ok) {

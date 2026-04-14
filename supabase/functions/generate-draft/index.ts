@@ -187,7 +187,53 @@ ${draft}`;
     const qcRaw = await callGemini("gemini-2.5-flash", qcPrompt, undefined, true);
     const qc = safeParseJson(qcRaw);
 
-    // 5. Insert into Supabase
+    // 5. Generate image from [IMAGE: ...] description
+    let imageUrl = "";
+    const imageMatch = draft.match(/\[IMAGE:\s*(.+?)\]/i);
+    if (imageMatch) {
+      try {
+        const imagePrompt = imageMatch[1].trim();
+        const imgRes = await fetch(`${GEMINI_URL}/imagen-4.0-generate-001:predict?key=${GEMINI_KEY}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            instances: [{ prompt: `Professional LinkedIn post image: ${imagePrompt}. Clean, modern, business-appropriate, high quality photography style.` }],
+            parameters: { sampleCount: 1, aspectRatio: "16:9" }
+          }),
+        });
+        const imgData = await imgRes.json();
+        if (imgRes.ok && imgData.predictions?.[0]?.bytesBase64Encoded) {
+          const imageBytes = imgData.predictions[0].bytesBase64Encoded;
+          const fileName = `post-${Date.now()}.png`;
+
+          const supabaseStorage = createClient(
+            Deno.env.get("SUPABASE_URL")!,
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+          );
+
+          // Decode base64 to Uint8Array
+          const binaryStr = atob(imageBytes);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+          const { error: uploadErr } = await supabaseStorage.storage
+            .from("post-images")
+            .upload(fileName, bytes, { contentType: "image/png" });
+
+          if (!uploadErr) {
+            const { data: urlData } = supabaseStorage.storage
+              .from("post-images")
+              .getPublicUrl(fileName);
+            imageUrl = urlData.publicUrl;
+          }
+        }
+      } catch (imgErr) {
+        console.error("Image generation failed:", imgErr);
+        // Continue without image - not a blocker
+      }
+    }
+
+    // 6. Insert into Supabase
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -203,6 +249,7 @@ ${draft}`;
       qc_verdict: qc.verdict,
       qc_feedback: qc.feedback,
       status: "Pending Review",
+      image_url: imageUrl || null,
     }).select("id").single();
 
     if (error) throw new Error(`Supabase insert: ${error.message}`);
