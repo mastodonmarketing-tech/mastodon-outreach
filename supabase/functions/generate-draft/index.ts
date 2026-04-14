@@ -69,7 +69,7 @@ async function callGemini(model: string, prompt: string, systemPrompt?: string, 
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: jsonMode ? 0.3 : 0.8,
-        maxOutputTokens: jsonMode ? 1000 : 1200,
+        maxOutputTokens: jsonMode ? 2000 : 1200,
       },
     };
     // Only use JSON mode on models that support it well
@@ -102,14 +102,11 @@ serve(async (req) => {
     const rssText = allItems.join("\n");
 
     // 2. Intelligence - pick topic
-    const intelligencePrompt = `You are a content intelligence system for Mastodon Marketing, a digital marketing agency specializing in construction, real estate, and local service businesses.
+    const intelligencePrompt = `Pick the best news item for a LinkedIn post for a construction/contractor marketing agency. Return ONLY a JSON object, nothing else.
 
-Score each item and select the SINGLE BEST to post about. Do not use double quotation marks in any text values.
+{"topic":"short topic","source":"url","bucket":"GROWTH","urgency":5,"angle":"short angle"}
 
-OUTPUT FORMAT: Valid JSON only.
-{"selected_item":{"topic":"","source":"","bucket":"","urgency":0,"angle":"","hook_ideas":["","",""]}}
-
-NEWS ITEMS:
+NEWS:
 ${rssText}`;
 
     const intelligenceRaw = await callGemini("gemini-2.5-flash", intelligencePrompt, undefined, true);
@@ -128,7 +125,7 @@ ${rssText}`;
       }
     };
     const intelligence = safeParseJson(intelligenceRaw);
-    const item = intelligence.selected_item;
+    const item = intelligence.selected_item || intelligence;
 
     // 3. Generate draft
     const draftPrompt = `CONTENT BUCKET: ${item.bucket}
