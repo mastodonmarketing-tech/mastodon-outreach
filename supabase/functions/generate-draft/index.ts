@@ -59,7 +59,7 @@ async function fetchRSS(url: string): Promise<string[]> {
   }
 }
 
-const FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"];
+const FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash"];
 
 async function callGemini(model: string, prompt: string, systemPrompt?: string, jsonMode = false) {
   const models = model === "gemini-2.5-flash" ? FALLBACK_MODELS : [model];
@@ -113,7 +113,15 @@ NEWS ITEMS:
 ${rssText}`;
 
     const intelligenceRaw = await callGemini("gemini-2.5-flash", intelligencePrompt, undefined, true);
-    const cleanJson = (s: string) => s.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const cleanJson = (s: string) => {
+      let c = s.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      // Try parsing as-is first
+      try { JSON.parse(c); return c; } catch {}
+      // Fix common issues: extract JSON object/array
+      const match = c.match(/[\[{][\s\S]*[\]}]/);
+      if (match) c = match[0];
+      return c;
+    };
     const intelligence = JSON.parse(cleanJson(intelligenceRaw));
     const item = intelligence.selected_item;
 
