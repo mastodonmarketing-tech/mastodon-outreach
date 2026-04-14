@@ -154,7 +154,22 @@ ${headlineList}`;
     const pickedRSS = rssToUse[Math.min(pickIndex, rssToUse.length - 1)];
     const item = { ...intelligence, source: pickedRSS.url, topic: pickedRSS.title };
 
-    // 3. Generate draft
+    // 3. Learn from past rewrites
+    const { data: pastRewrites } = await supabaseForQuery
+      .from("linkedin_drafts")
+      .select("notes")
+      .not("notes", "is", null)
+      .neq("notes", "")
+      .order("created_at", { ascending: false })
+      .limit(15);
+
+    let learnedStyle = "";
+    if (pastRewrites && pastRewrites.length > 0) {
+      const uniqueNotes = [...new Set(pastRewrites.map((r: any) => r.notes.trim()))];
+      learnedStyle = `\n\nSTYLE LESSONS FROM PAST FEEDBACK (follow these closely):\n${uniqueNotes.map((n, i) => `${i+1}. ${n}`).join("\n")}`;
+    }
+
+    // 4. Generate draft
     const draftPrompt = `CONTENT BUCKET: ${item.bucket}
 TOPIC: ${item.topic}
 SOURCE URL: ${item.source}
@@ -162,7 +177,7 @@ ANGLE: ${item.angle}
 
 Write a LinkedIn post for Mastodon Marketing following all voice, format, and psychology rules. Include the source URL at the end.`;
 
-    const draft = await callGemini("gemini-2.5-flash", draftPrompt, SYSTEM_PROMPT);
+    const draft = await callGemini("gemini-2.5-flash", draftPrompt, SYSTEM_PROMPT + learnedStyle);
 
     // 4. QC score
     const qcPrompt = `Rate this post 1-10. Return ONLY: {"weighted_average":7,"verdict":"PASS","feedback":"max 15 words"}
