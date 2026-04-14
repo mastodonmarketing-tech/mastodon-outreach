@@ -38,6 +38,8 @@ CONTENT RULES:
 - Include source URL at end if referencing an article.
 - Include [IMAGE: description] at the end.
 
+LENGTH: Every post MUST be at least 150 words and ideally 200-250 words. A short post is a bad post. Include enough detail, examples, and actionable steps to fill a full LinkedIn post. Do not stop early.
+
 OUTPUT: Return post text only. No preamble. No markdown. Plain text only.`;
 
 const corsHeaders = {
