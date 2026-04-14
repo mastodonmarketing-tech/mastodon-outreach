@@ -113,7 +113,8 @@ NEWS ITEMS:
 ${rssText}`;
 
     const intelligenceRaw = await callGemini("gemini-2.5-flash", intelligencePrompt, undefined, true);
-    const intelligence = JSON.parse(intelligenceRaw);
+    const cleanJson = (s: string) => s.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const intelligence = JSON.parse(cleanJson(intelligenceRaw));
     const item = intelligence.selected_item;
 
     // 3. Generate draft
@@ -138,7 +139,7 @@ POST TO SCORE:
 ${draft}`;
 
     const qcRaw = await callGemini("gemini-2.5-flash", qcPrompt, undefined, true);
-    const qc = JSON.parse(qcRaw);
+    const qc = JSON.parse(cleanJson(qcRaw));
 
     // 5. Insert into Supabase
     const supabase = createClient(
