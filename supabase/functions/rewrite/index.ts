@@ -15,7 +15,8 @@ TOPIC MIX: Posts cover three pillars:
 
 WRITING STYLE:
 - 9th-grade reading level. Short sentences. Simple words.
-- Every sentence gets its own line with a blank line between sentences.
+- Group 2-3 related sentences into short paragraphs. Put a blank line between each paragraph.
+- Keep the total post between 150-200 words. Do not exceed 200 words.
 - Practical and actionable. Give the reader something they can DO today.
 - No em dashes. No corporate speak. No passive voice.
 - Conversational and direct.
