@@ -70,9 +70,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 </div>
 
 <script>
-const SHEET_ID = '1d0X013ZW-JoYj96s2vhC_0hY6a-LdqqfAh9DnxdhQEo';
+const SUPABASE_URL = 'https://vaaudpclqxaqzlryhhlm.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZhYXVkcGNscXhhcXpscnloaGxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMzc3NDEsImV4cCI6MjA5MTcxMzc0MX0.R7iLNsyHAc-Ky_ri1tP5DovcECYu_jTqpi1-3GjobJg';
 const WEBHOOK_URL = 'https://hook.us2.make.com/mjtgp2elismc1om531caposuqcyvpchm';
-const SHEETS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+
+const headers = {
+  'apikey': SUPABASE_KEY,
+  'Authorization': `Bearer ${SUPABASE_KEY}`,
+  'Content-Type': 'application/json',
+  'Prefer': 'return=minimal'
+};
 
 function showToast(message, type) {
   const toast = document.createElement('div');
@@ -96,65 +103,58 @@ function getStatusClass(status) {
   return 'badge-pending';
 }
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function supaFetch(path, options = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers, ...options });
+  if (!res.ok) throw new Error(`Supabase error: ${res.status}`);
+  if (res.status === 204) return null;
+  return res.json();
+}
+
 async function loadDrafts() {
   const container = document.getElementById('container');
   container.innerHTML = '<div class="loading">Loading drafts...</div>';
 
   try {
-    const response = await fetch(SHEETS_URL);
-    const text = await response.text();
-    const json = JSON.parse(text.substring(47, text.length - 2));
-    const rows = json.table.rows;
-    const cols = json.table.cols;
+    const rows = await supaFetch('linkedin_drafts?order=created_at.desc');
 
     let pending = 0, published = 0, rejected = 0;
     let html = '';
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const r = (c) => row.c && row.c[c] ? row.c[c].v || '' : '';
-      const rowNum = i + 2;
-
-      const date = r(0);
-      const topic = r(1);
-      const source = r(2);
-      const bucket = r(3);
-      const urgency = r(4);
-      const draft = r(5);
-      const qcScore = r(6);
-      const verdict = r(7);
-      const feedback = r(8);
-      const status = r(9);
-      const notes = r(16);
-
-      if (status && status.toLowerCase().includes('publish')) published++;
-      else if (status && status.toLowerCase().includes('reject')) rejected++;
+    for (const row of rows) {
+      const isPending = !row.status || row.status === 'Pending Review' || row.status === 'Manual Rewrite Needed';
+      if (row.status && row.status.toLowerCase().includes('publish')) published++;
+      else if (row.status && row.status.toLowerCase().includes('reject')) rejected++;
       else pending++;
 
-      const isPending = !status || status === 'Pending Review' || status === 'Manual Rewrite Needed';
+      const date = row.created_at ? new Date(row.created_at).toLocaleDateString() : '';
 
       html += `
-        <div class="card" id="card-${rowNum}">
+        <div class="card" id="card-${row.id}">
           <div class="card-header">
             <div class="card-meta">
-              <span class="badge ${getBucketClass(bucket)}">${bucket || 'N/A'}</span>
-              <span class="badge ${getStatusClass(status)}">${status || 'Pending Review'}</span>
-              <span class="qc-score">QC: <strong>${qcScore || '?'}/10</strong></span>
-              <span class="qc-score">Urgency: <strong>${urgency || '?'}/10</strong></span>
+              <span class="badge ${getBucketClass(row.bucket)}">${row.bucket || 'N/A'}</span>
+              <span class="badge ${getStatusClass(row.status)}">${row.status || 'Pending Review'}</span>
+              <span class="qc-score">QC: <strong>${row.qc_score || '?'}/10</strong></span>
+              <span class="qc-score">Urgency: <strong>${row.urgency || '?'}/10</strong></span>
             </div>
-            <span class="card-date">${date || ''}</span>
+            <span class="card-date">${date}</span>
           </div>
           <div class="card-body">
-            <div class="draft-text">${escapeHtml(draft)}</div>
-            ${source ? `<a href="${source}" target="_blank" class="source-link">Source article</a>` : ''}
-            ${feedback ? `<div class="feedback"><strong>QC Feedback:</strong> ${escapeHtml(feedback)}</div>` : ''}
+            <div class="draft-text">${escapeHtml(row.draft)}</div>
+            ${row.source_url ? `<a href="${escapeHtml(row.source_url)}" target="_blank" class="source-link">Source article</a>` : ''}
+            ${row.qc_feedback ? `<div class="feedback"><strong>QC Feedback:</strong> ${escapeHtml(row.qc_feedback)}</div>` : ''}
           </div>
           ${isPending ? `
           <div class="card-footer">
-            <button class="btn btn-approve" onclick="handleAction('approve', ${rowNum}, this)">Approve & Publish</button>
-            <button class="btn btn-reject" onclick="handleAction('reject', ${rowNum}, this)">Reject</button>
-            <button class="btn btn-rewrite" onclick="toggleRewrite(${rowNum})">Rewrite</button>
-            <input type="text" class="rewrite-input" id="rewrite-${rowNum}" placeholder="Type rewrite instructions, then press Enter" onkeydown="if(event.key==='Enter') handleRewrite(${rowNum}, this)">
+            <button class="btn btn-approve" onclick="handleApprove(${row.id}, this)">Approve & Publish</button>
+            <button class="btn btn-reject" onclick="handleReject(${row.id}, this)">Reject</button>
+            <button class="btn btn-rewrite" onclick="toggleRewrite(${row.id})">Rewrite</button>
+            <input type="text" class="rewrite-input" id="rewrite-${row.id}" placeholder="Type rewrite instructions, then press Enter" onkeydown="if(event.key==='Enter') handleRewrite(${row.id}, this)">
           </div>` : ''}
         </div>`;
     }
@@ -164,58 +164,84 @@ async function loadDrafts() {
     }
 
     container.innerHTML = html;
-
     document.getElementById('statusBar').innerHTML = `
       <div class="stat"><span class="dot dot-pending"></span> ${pending} Pending</div>
       <div class="stat"><span class="dot dot-published"></span> ${published} Published</div>
       <div class="stat"><span class="dot dot-rejected"></span> ${rejected} Rejected</div>
     `;
   } catch (err) {
-    container.innerHTML = `<div class="empty"><h2>Could not load sheet</h2><p>Make sure the sheet is published to web (File > Share > Publish to web)</p><p style="margin-top:8px;font-size:12px;color:#ef4444">${err.message}</p></div>`;
+    container.innerHTML = `<div class="empty"><h2>Could not load drafts</h2><p style="margin-top:8px;font-size:12px;color:#ef4444">${err.message}</p></div>`;
   }
 }
 
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-function toggleRewrite(rowNum) {
-  const input = document.getElementById(`rewrite-${rowNum}`);
+function toggleRewrite(id) {
+  const input = document.getElementById(`rewrite-${id}`);
   input.classList.toggle('show');
   if (input.classList.contains('show')) input.focus();
 }
 
-async function handleRewrite(rowNum, input) {
-  const notes = input.value.trim();
-  if (!notes) return;
-  await handleAction('rewrite', rowNum, input, notes);
+function disableButtons(id) {
+  const card = document.getElementById(`card-${id}`);
+  if (card) card.querySelectorAll('.btn').forEach(b => b.disabled = true);
 }
 
-async function handleAction(action, rowNum, btn, notes) {
-  const card = document.getElementById(`card-${rowNum}`);
-  const buttons = card.querySelectorAll('.btn');
-  buttons.forEach(b => b.disabled = true);
-
+async function handleApprove(id, btn) {
+  disableButtons(id);
   try {
+    // Send to Make.com webhook for LinkedIn publishing
     await fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, row_id: rowNum, notes: notes || '' })
+      body: JSON.stringify({ action: 'approve', draft_id: id })
     });
-
-    if (action === 'approve') {
-      showToast(`Row ${rowNum} sent for publishing`, 'success');
-    } else if (action === 'reject') {
-      showToast(`Row ${rowNum} rejected`, 'success');
-    } else if (action === 'rewrite') {
-      showToast(`Row ${rowNum} sent for rewrite`, 'success');
-    }
-
+    // Update status in Supabase
+    await supaFetch(`linkedin_drafts?id=eq.${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'Publishing...' })
+    });
+    showToast('Sent for publishing to LinkedIn', 'success');
     setTimeout(loadDrafts, 2000);
   } catch (err) {
     showToast('Error: ' + err.message, 'error');
-    buttons.forEach(b => b.disabled = false);
+    loadDrafts();
+  }
+}
+
+async function handleReject(id, btn) {
+  disableButtons(id);
+  try {
+    await supaFetch(`linkedin_drafts?id=eq.${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'Rejected' })
+    });
+    showToast('Post rejected', 'success');
+    setTimeout(loadDrafts, 500);
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+    loadDrafts();
+  }
+}
+
+async function handleRewrite(id, input) {
+  const notes = input.value.trim();
+  if (!notes) return;
+  disableButtons(id);
+  try {
+    // Send to Make.com webhook for Gemini rewrite
+    await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'rewrite', draft_id: id, notes: notes })
+    });
+    await supaFetch(`linkedin_drafts?id=eq.${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'Rewriting...', notes: notes })
+    });
+    showToast('Sent for rewrite', 'success');
+    setTimeout(loadDrafts, 3000);
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+    loadDrafts();
   }
 }
 
