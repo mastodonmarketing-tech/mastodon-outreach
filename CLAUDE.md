@@ -28,6 +28,20 @@ sheets/           - Google Sheets schema documentation
 slack/            - Slack message format documentation
 ```
 
+## AI Skills (taste-skill)
+
+7 frontend design skills installed via `npx skills add https://github.com/Leonxlnx/taste-skill`:
+
+- **design-taste-frontend** — Core UI/UX rules for layouts, typography, colors, spacing, motion
+- **high-end-visual-design** — Agency-style fonts, spacing, shadows, animations
+- **redesign-existing-projects** — Audit and upgrade existing projects to premium quality
+- **full-output-enforcement** — Prevents code truncation and placeholder patterns
+- **minimalist-ui** — Clean editorial-style interfaces (Notion/Linear inspired)
+- **industrial-brutalist-ui** — Raw Swiss typography + terminal aesthetics
+- **stitch-design-taste** — Google Stitch-compatible semantic design rules
+
+Skills live in `.agents/skills/` with symlinks in `.claude/skills/`. Manage with `npx skills list`, `npx skills update`, or `npx skills remove`.
+
 ## Testing
 
 ```bash
