@@ -19,7 +19,7 @@ WRITING STYLE:
 MARKETING PSYCHOLOGY:
 - HOOK: Pattern interrupt, curiosity gap, or surprising stat in first 2 lines.
 - RETENTION: Open loops, storytelling, concrete numbers.
-- SOCIAL PROOF: Real results, real client names.
+- SOCIAL PROOF: Reference real results with specific numbers. Only mention client names occasionally, maybe 1 in 5 posts. Most posts should use anonymous examples like 'one roofing company' or 'a GC we work with'.
 - RECIPROCITY: Give value first.
 - CTA: Clear call to action tied to Mastodon Marketing services.
 
