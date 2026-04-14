@@ -68,33 +68,34 @@ async function fetchRSS(url: string): Promise<RSSItem[]> {
   }
 }
 
-const FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash-001"];
-
 async function callGemini(model: string, prompt: string, systemPrompt?: string, jsonMode = false) {
-  const models = model === "gemini-2.5-flash" ? FALLBACK_MODELS : [model];
+  const body: any = {
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: jsonMode ? 0.3 : 0.8,
+      maxOutputTokens: jsonMode ? 2000 : 4096,
+    },
+  };
+  if (jsonMode) body.generationConfig.responseMimeType = "application/json";
+  if (systemPrompt) body.system_instruction = { parts: [{ text: systemPrompt }] };
 
-  for (const m of models) {
-    const body: any = {
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: jsonMode ? 0.3 : 0.8,
-        maxOutputTokens: jsonMode ? 2000 : 4000,
-      },
-    };
-    // Only use JSON mode on models that support it well
-    if (jsonMode && m.includes("2.5")) body.generationConfig.responseMimeType = "application/json";
-    if (systemPrompt) body.system_instruction = { parts: [{ text: systemPrompt }] };
-
-    const res = await fetch(`${GEMINI_URL}/${m}:generateContent?key=${GEMINI_KEY}`, {
+  // Retry up to 3 times with delay on 503/429
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 3000));
+    const res = await fetch(`${GEMINI_URL}/${model}:generateContent?key=${GEMINI_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (res.ok) return data.candidates[0].content.parts[0].text;
-    if (res.status !== 503 && res.status !== 429 && res.status !== 404) throw new Error(`Gemini ${res.status}: ${JSON.stringify(data)}`);
+    if (res.ok) {
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error("Gemini returned empty response");
+      return text;
+    }
+    if (res.status !== 503 && res.status !== 429) throw new Error(`Gemini ${res.status}: ${JSON.stringify(data)}`);
   }
-  throw new Error("All Gemini models unavailable. Try again in a minute.");
+  throw new Error("Gemini unavailable after 3 retries. Try again in a minute.");
 }
 
 serve(async (req) => {

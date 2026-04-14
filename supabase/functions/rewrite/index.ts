@@ -71,31 +71,32 @@ ${notes}
 
 Revise the post according to these instructions. Keep the same topic and source. Follow all voice, format, and psychology rules.`;
 
-    const models = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash-001"];
-    let geminiData: any;
+    const body = {
+      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 4096,
+      },
+    };
 
-    for (const model of models) {
-      const body = {
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1200,
-        },
-      };
-
-      const geminiRes = await fetch(`${GEMINI_URL}/${model}:generateContent?key=${GEMINI_KEY}`, {
+    let newDraft = "";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 3000));
+      const geminiRes = await fetch(`${GEMINI_URL}/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
-      geminiData = await geminiRes.json();
-      if (geminiRes.ok) break;
-      if (geminiRes.status !== 503 && geminiRes.status !== 429 && geminiRes.status !== 404) throw new Error(`Gemini error: ${JSON.stringify(geminiData)}`);
-      if (model === models[models.length - 1]) throw new Error("All Gemini models unavailable. Try again in a minute.");
+      const geminiData = await geminiRes.json();
+      if (geminiRes.ok) {
+        newDraft = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        break;
+      }
+      if (geminiRes.status !== 503 && geminiRes.status !== 429) throw new Error(`Gemini error: ${JSON.stringify(geminiData)}`);
+      if (attempt === 2) throw new Error("Gemini unavailable after 3 retries. Try again in a minute.");
     }
-    const newDraft = geminiData.candidates[0].content.parts[0].text;
+    if (!newDraft) throw new Error("Gemini returned empty response");
 
     // Update draft in Supabase
     const { error: updateErr } = await supabase
