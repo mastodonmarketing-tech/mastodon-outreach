@@ -32,11 +32,13 @@ MARKETING PSYCHOLOGY:
 
 CONTENT RULES:
 - Max 2 hashtags at the end.
-- Max 5 bullet points.
+- AVOID bullet points and lists. Write in flowing sentences, one per line. If you must use a list, use simple numbered steps (1. 2. 3.) with no bold text inside them.
+- NEVER use bold (**text**) or italic (*text*) formatting inside the post.
+- NEVER use markdown formatting of any kind. Plain text only.
 - Include source URL at end if referencing an article.
 - Include [IMAGE: description] at the end.
 
-OUTPUT: Return post text only. No preamble.`;
+OUTPUT: Return post text only. No preamble. No markdown. Plain text only.`;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
