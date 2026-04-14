@@ -43,14 +43,19 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-async function fetchRSS(url: string): Promise<string[]> {
+interface RSSItem { title: string; url: string; }
+
+async function fetchRSS(url: string): Promise<RSSItem[]> {
   try {
     const res = await fetch(url);
     const xml = await res.text();
-    const items: string[] = [];
-    const titleMatches = xml.matchAll(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?<\/item>/g);
-    for (const m of titleMatches) {
-      items.push(`HEADLINE: ${m[1].replace(/<!\[CDATA\[|\]\]>/g, "")} | URL: ${m[2].replace(/<!\[CDATA\[|\]\]>/g, "")}`);
+    const items: RSSItem[] = [];
+    const matches = xml.matchAll(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?<\/item>/g);
+    for (const m of matches) {
+      items.push({
+        title: m[1].replace(/<!\[CDATA\[|\]\]>/g, "").trim(),
+        url: m[2].replace(/<!\[CDATA\[|\]\]>/g, "").trim()
+      });
       if (items.length >= 5) break;
     }
     return items;
@@ -93,39 +98,39 @@ serve(async (req) => {
 
   try {
     // 1. Fetch RSS
-    const allItems: string[] = [];
+    const allRSS: RSSItem[] = [];
     for (const url of RSS_FEEDS) {
       const items = await fetchRSS(url);
-      allItems.push(...items);
+      allRSS.push(...items);
     }
-    if (allItems.length === 0) throw new Error("No RSS items found");
-    const rssText = allItems.join("\n");
+    if (allRSS.length === 0) throw new Error("No RSS items found");
 
-    // 2. Intelligence - pick topic
-    const intelligencePrompt = `Pick the best news item for a LinkedIn post for a construction/contractor marketing agency. Return ONLY a JSON object, nothing else.
+    // Build numbered list of headlines only (no URLs - they break JSON)
+    const headlineList = allRSS.map((item, i) => `${i + 1}. ${item.title}`).join("\n");
 
-{"topic":"short topic","source":"url","bucket":"GROWTH","urgency":5,"angle":"short angle"}
+    // 2. Intelligence - pick topic by number
+    const intelligencePrompt = `Pick the best headline number for a LinkedIn post for a construction/contractor marketing agency.
+Return ONLY a JSON object: {"pick":1,"topic":"short topic","bucket":"GROWTH","urgency":5,"angle":"one sentence angle"}
 
-NEWS:
-${rssText}`;
+HEADLINES:
+${headlineList}`;
 
     const intelligenceRaw = await callGemini("gemini-2.5-flash", intelligencePrompt, undefined, true);
     const safeParseJson = (s: string) => {
-      // Strip markdown fences
       let c = s.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       try { return JSON.parse(c); } catch {}
-      // Extract JSON object
       const match = c.match(/\{[\s\S]*\}/);
       if (match) c = match[0];
       try { return JSON.parse(c); } catch {}
-      // Last resort: fix common issues
       c = c.replace(/[\r\n]+/g, ' ').replace(/\t/g, ' ');
       try { return JSON.parse(c); } catch (e) {
         throw new Error(`JSON parse failed: ${(e as Error).message}\nRaw: ${s.substring(0, 200)}`);
       }
     };
     const intelligence = safeParseJson(intelligenceRaw);
-    const item = intelligence.selected_item || intelligence;
+    const pickIndex = (intelligence.pick || 1) - 1;
+    const pickedRSS = allRSS[Math.min(pickIndex, allRSS.length - 1)];
+    const item = { ...intelligence, source: pickedRSS.url, topic: intelligence.topic || pickedRSS.title };
 
     // 3. Generate draft
     const draftPrompt = `CONTENT BUCKET: ${item.bucket}
