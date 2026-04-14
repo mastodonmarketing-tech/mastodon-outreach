@@ -72,7 +72,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 <script>
 const SUPABASE_URL = 'https://vaaudpclqxaqzlryhhlm.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZhYXVkcGNscXhhcXpscnloaGxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMzc3NDEsImV4cCI6MjA5MTcxMzc0MX0.R7iLNsyHAc-Ky_ri1tP5DovcECYu_jTqpi1-3GjobJg';
-const WEBHOOK_URL = 'https://hook.us2.make.com/mjtgp2elismc1om531caposuqcyvpchm';
+// Edge Functions replace Make.com webhook
 
 const headers = {
   'apikey': SUPABASE_KEY,
@@ -188,19 +188,15 @@ function disableButtons(id) {
 async function handleApprove(id, btn) {
   disableButtons(id);
   try {
-    // Send to Make.com webhook for LinkedIn publishing
-    await fetch(WEBHOOK_URL, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/approve`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'approve', draft_id: id })
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      body: JSON.stringify({ draft_id: id })
     });
-    // Update status in Supabase
-    await supaFetch(`linkedin_drafts?id=eq.${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'Publishing...' })
-    });
-    showToast('Sent for publishing to LinkedIn', 'success');
-    setTimeout(loadDrafts, 2000);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Approve failed');
+    showToast('Published to LinkedIn!', 'success');
+    setTimeout(loadDrafts, 1000);
   } catch (err) {
     showToast('Error: ' + err.message, 'error');
     loadDrafts();
@@ -227,18 +223,15 @@ async function handleRewrite(id, input) {
   if (!notes) return;
   disableButtons(id);
   try {
-    // Send to Make.com webhook for Gemini rewrite
-    await fetch(WEBHOOK_URL, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/rewrite`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'rewrite', draft_id: id, notes: notes })
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      body: JSON.stringify({ draft_id: id, notes: notes })
     });
-    await supaFetch(`linkedin_drafts?id=eq.${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'Rewriting...', notes: notes })
-    });
-    showToast('Sent for rewrite', 'success');
-    setTimeout(loadDrafts, 3000);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Rewrite failed');
+    showToast('Draft rewritten!', 'success');
+    setTimeout(loadDrafts, 1000);
   } catch (err) {
     showToast('Error: ' + err.message, 'error');
     loadDrafts();
