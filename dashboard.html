@@ -473,7 +473,9 @@ async function generateBatch() {
   const total = 5;
   let done = 0;
   btn.innerHTML = `<div class="spinner"></div> 0/${total}`;
+  const wait = (ms) => new Promise(r => setTimeout(r, ms));
   for (let i = 0; i < total; i++) {
+    if (i > 0) await wait(5000);
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-draft`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
