@@ -56,6 +56,11 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 .badge-personal { background: #fff3e0; color: #e65100; }
 .badge-seo { background: #e3f2fd; color: #1565c0; }
 .badge-pending { background: #fff8e1; color: #f57f17; border: 1px solid #ffe082; }
+.badge-scheduled { background: #ede7f6; color: #553d67; border: 1px solid #ce93d8; }
+.scheduled-date { font-size: 13px; color: #553d67; font-weight: 600; margin-top: 4px; }
+.schedule-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 6px; }
+.date-input { padding: 5px 10px; border: 1px solid #d0d0d0; border-radius: 6px; font-size: 12px; font-family: inherit; color: #1a1a1a; background: #fafafa; }
 .badge-published { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
 .badge-rejected { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
 .card-date { font-size: 12px; color: #888888; white-space: nowrap; padding-top: 2px; }
@@ -158,6 +163,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 <div class="tabs" id="tabs">
   <div class="tab active" data-filter="all">All <span class="tab-count" id="count-all">0</span></div>
   <div class="tab" data-filter="pending">Pending <span class="tab-count" id="count-pending">0</span></div>
+  <div class="tab" data-filter="scheduled">Scheduled <span class="tab-count" id="count-scheduled">0</span></div>
   <div class="tab" data-filter="published">Published <span class="tab-count" id="count-published">0</span></div>
   <div class="tab" data-filter="rejected">Rejected <span class="tab-count" id="count-rejected">0</span></div>
 </div>
@@ -189,6 +195,7 @@ function escapeHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g
 function getStatus(s) {
   if (!s) return 'pending';
   const l = s.toLowerCase();
+  if (l.includes('scheduled')) return 'scheduled';
   if (l.includes('publish')) return 'published';
   if (l.includes('reject')) return 'rejected';
   return 'pending';
@@ -238,11 +245,12 @@ async function loadDrafts() {
 
 function renderDrafts() {
   const main = document.getElementById('main');
-  let pending = 0, published = 0, rejected = 0;
-  allDrafts.forEach(r => { const s = getStatus(r.status); if (s === 'published') published++; else if (s === 'rejected') rejected++; else pending++; });
+  let pending = 0, published = 0, rejected = 0, scheduled = 0;
+  allDrafts.forEach(r => { const s = getStatus(r.status); if (s === 'scheduled') scheduled++; else if (s === 'published') published++; else if (s === 'rejected') rejected++; else pending++; });
 
   document.getElementById('count-all').textContent = allDrafts.length;
   document.getElementById('count-pending').textContent = pending;
+  document.getElementById('count-scheduled').textContent = scheduled;
   document.getElementById('count-published').textContent = published;
   document.getElementById('count-rejected').textContent = rejected;
 
@@ -259,6 +267,9 @@ function renderDrafts() {
     const date = row.created_at ? new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
     const qc = row.qc_score ? parseFloat(row.qc_score) : 0;
     const isPending = status === 'pending';
+    const isScheduled = status === 'scheduled';
+    const schedDate = row.scheduled_for ? new Date(row.scheduled_for) : null;
+    const schedStr = schedDate ? schedDate.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' }) + ' at ' + schedDate.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : '';
 
     return `
     <div class="card ${status}" id="card-${row.id}">
@@ -300,9 +311,20 @@ function renderDrafts() {
         <button class="btn btn-rewrite rewrite-submit" onclick="handleRewrite(${row.id})">Submit Rewrite</button>
       </div>
       <div class="card-actions">
-        <button class="btn btn-approve" onclick="confirmApprove(${row.id})">&#x2713; Approve & Publish</button>
+        <button class="btn btn-approve" onclick="confirmApprove(${row.id})">&#x2713; Approve & Schedule</button>
         <button class="btn btn-reject" onclick="handleReject(${row.id})">Reject</button>
         <button class="btn btn-rewrite" onclick="toggleRewrite(${row.id})">&#x270E; Rewrite</button>
+      </div>` : ''}
+
+      ${isScheduled ? `
+      <div class="card-actions">
+        <div class="scheduled-date">&#x1F4C5; Scheduled: ${schedStr}</div>
+        <div class="schedule-actions">
+          <input type="datetime-local" class="date-input" id="reschedule-${row.id}" value="${schedDate ? schedDate.toISOString().slice(0,16) : ''}">
+          <button class="btn btn-rewrite btn-sm" onclick="reschedule(${row.id})">Update Date</button>
+          <button class="btn btn-approve btn-sm" onclick="publishNow(${row.id})">Publish Now</button>
+          <button class="btn btn-reject btn-sm" onclick="unschedule(${row.id})">Cancel</button>
+        </div>
       </div>` : ''}
     </div>`;
   }).join('');
@@ -332,11 +354,11 @@ function confirmApprove(id) {
   overlay.className = 'confirm-overlay';
   overlay.innerHTML = `
     <div class="confirm-box">
-      <h3>Publish to LinkedIn?</h3>
-      <p>This will post the draft to your LinkedIn profile immediately. This action cannot be undone.</p>
+      <h3>Schedule for LinkedIn?</h3>
+      <p>This will add the post to your publishing queue. It will be auto-published at the next optimal time (weekdays, max 1/day).</p>
       <div class="confirm-actions">
         <button class="btn btn-reject" onclick="this.closest('.confirm-overlay').remove()">Cancel</button>
-        <button class="btn btn-approve" onclick="this.closest('.confirm-overlay').remove(); handleApprove(${id})">Publish Now</button>
+        <button class="btn btn-approve" onclick="this.closest('.confirm-overlay').remove(); handleApprove(${id})">Schedule</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -352,8 +374,51 @@ async function handleApprove(id) {
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Failed');
+    const when = data.scheduled_for ? new Date(data.scheduled_for).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' }) : '';
+    showToast(`Scheduled for ${when}!`, 'success');
+    setTimeout(loadDrafts, 800);
+  } catch (err) { showToast('Error: ' + err.message, 'error'); loadDrafts(); }
+}
+
+async function publishNow(id) {
+  disableCard(id);
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/approve`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      body: JSON.stringify({ draft_id: id, publish_now: true })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Failed');
     showToast('Published to LinkedIn!', 'success');
     setTimeout(loadDrafts, 800);
+  } catch (err) { showToast('Error: ' + err.message, 'error'); loadDrafts(); }
+}
+
+async function reschedule(id) {
+  const input = document.getElementById(`reschedule-${id}`);
+  if (!input.value) return;
+  disableCard(id);
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/approve`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      body: JSON.stringify({ draft_id: id, scheduled_for: new Date(input.value).toISOString() })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Failed');
+    showToast('Rescheduled!', 'success');
+    setTimeout(loadDrafts, 500);
+  } catch (err) { showToast('Error: ' + err.message, 'error'); loadDrafts(); }
+}
+
+async function unschedule(id) {
+  disableCard(id);
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/linkedin_drafts?id=eq.${id}`, {
+      method: 'PATCH', headers: hdrs,
+      body: JSON.stringify({ status: 'Pending Review', scheduled_for: null })
+    });
+    showToast('Unscheduled - moved back to Pending', 'success');
+    setTimeout(loadDrafts, 500);
   } catch (err) { showToast('Error: ' + err.message, 'error'); loadDrafts(); }
 }
 
