@@ -59,7 +59,7 @@ async function fetchRSS(url: string): Promise<string[]> {
   }
 }
 
-const FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash"];
+const FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
 
 async function callGemini(model: string, prompt: string, systemPrompt?: string, jsonMode = false) {
   const models = model === "gemini-2.5-flash" ? FALLBACK_MODELS : [model];
@@ -83,7 +83,7 @@ async function callGemini(model: string, prompt: string, systemPrompt?: string, 
     });
     const data = await res.json();
     if (res.ok) return data.candidates[0].content.parts[0].text;
-    if (res.status !== 503 && res.status !== 429) throw new Error(`Gemini ${res.status}: ${JSON.stringify(data)}`);
+    if (res.status !== 503 && res.status !== 429 && res.status !== 404) throw new Error(`Gemini ${res.status}: ${JSON.stringify(data)}`);
   }
   throw new Error("All Gemini models unavailable. Try again in a minute.");
 }

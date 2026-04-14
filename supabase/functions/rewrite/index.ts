@@ -67,7 +67,7 @@ ${notes}
 
 Revise the post according to these instructions. Keep the same topic and source. Follow all voice, format, and psychology rules.`;
 
-    const models = ["gemini-2.5-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash"];
+    const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
     let geminiData: any;
 
     for (const model of models) {
@@ -88,7 +88,7 @@ Revise the post according to these instructions. Keep the same topic and source.
 
       geminiData = await geminiRes.json();
       if (geminiRes.ok) break;
-      if (geminiRes.status !== 503 && geminiRes.status !== 429) throw new Error(`Gemini error: ${JSON.stringify(geminiData)}`);
+      if (geminiRes.status !== 503 && geminiRes.status !== 429 && geminiRes.status !== 404) throw new Error(`Gemini error: ${JSON.stringify(geminiData)}`);
       if (model === models[models.length - 1]) throw new Error("All Gemini models unavailable. Try again in a minute.");
     }
     const newDraft = geminiData.candidates[0].content.parts[0].text;
