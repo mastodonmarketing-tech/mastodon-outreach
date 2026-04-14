@@ -109,10 +109,9 @@ serve(async (req) => {
     const headlineList = allRSS.map((item, i) => `${i + 1}. ${item.title}`).join("\n");
 
     // 2. Intelligence - pick topic by number
-    const intelligencePrompt = `Pick the best headline number for a LinkedIn post for a construction/contractor marketing agency.
-Return ONLY a JSON object: {"pick":1,"topic":"short topic","bucket":"GROWTH","urgency":5,"angle":"one sentence angle"}
+    const intelligencePrompt = `Pick the best headline number for a contractor marketing LinkedIn post.
+Return ONLY this JSON, keep ALL values under 10 words: {"pick":1,"topic":"short","bucket":"GROWTH","urgency":5,"angle":"short"}
 
-HEADLINES:
 ${headlineList}`;
 
     const intelligenceRaw = await callGemini("gemini-2.5-flash", intelligencePrompt, undefined, true);
@@ -143,14 +142,8 @@ Write a LinkedIn post for Mastodon Marketing following all voice, format, and ps
     const draft = await callGemini("gemini-2.5-flash", draftPrompt, SYSTEM_PROMPT);
 
     // 4. QC score
-    const qcPrompt = `Score this LinkedIn draft on 7 dimensions (1-10):
-1. HOOK_QUALITY (20%) 2. ACTIONABLE_VALUE (25%) 3. READABILITY (15%)
-4. PSYCHOLOGY_EFFECTIVENESS (15%) 5. CTA_STRENGTH (10%) 6. ICP_PRECISION (10%) 7. SOURCE_AND_IMAGE (5%)
+    const qcPrompt = `Rate this post 1-10. Return ONLY: {"weighted_average":7,"verdict":"PASS","feedback":"max 15 words"}
 
-Do not use double quotation marks in feedback text.
-Return JSON: {"weighted_average":0,"verdict":"PASS","feedback":"..."}
-
-POST TO SCORE:
 ${draft}`;
 
     const qcRaw = await callGemini("gemini-2.5-flash", qcPrompt, undefined, true);
