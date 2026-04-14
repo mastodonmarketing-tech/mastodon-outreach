@@ -74,7 +74,7 @@ async function callGemini(model: string, prompt: string, systemPrompt?: string, 
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: jsonMode ? 0.3 : 0.8,
-        maxOutputTokens: jsonMode ? 2000 : 1200,
+        maxOutputTokens: jsonMode ? 2000 : 4000,
       },
     };
     // Only use JSON mode on models that support it well
@@ -129,7 +129,7 @@ ${headlineList}`;
     const intelligence = safeParseJson(intelligenceRaw);
     const pickIndex = (intelligence.pick || 1) - 1;
     const pickedRSS = allRSS[Math.min(pickIndex, allRSS.length - 1)];
-    const item = { ...intelligence, source: pickedRSS.url, topic: intelligence.topic || pickedRSS.title };
+    const item = { ...intelligence, source: pickedRSS.url, topic: pickedRSS.title };
 
     // 3. Generate draft
     const draftPrompt = `CONTENT BUCKET: ${item.bucket}
