@@ -161,7 +161,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 </div>
 
 <div class="tabs" id="tabs">
-  <div class="tab active" data-filter="all">All <span class="tab-count" id="count-all">0</span></div>
+  <div class="tab active" data-filter="all">Needs Attention <span class="tab-count" id="count-all">0</span></div>
   <div class="tab" data-filter="pending">Pending <span class="tab-count" id="count-pending">0</span></div>
   <div class="tab" data-filter="scheduled">Scheduled <span class="tab-count" id="count-scheduled">0</span></div>
   <div class="tab" data-filter="published">Published <span class="tab-count" id="count-published">0</span></div>
@@ -248,16 +248,18 @@ function renderDrafts() {
   let pending = 0, published = 0, rejected = 0, scheduled = 0;
   allDrafts.forEach(r => { const s = getStatus(r.status); if (s === 'scheduled') scheduled++; else if (s === 'published') published++; else if (s === 'rejected') rejected++; else pending++; });
 
-  document.getElementById('count-all').textContent = allDrafts.length;
+  document.getElementById('count-all').textContent = pending;
   document.getElementById('count-pending').textContent = pending;
   document.getElementById('count-scheduled').textContent = scheduled;
   document.getElementById('count-published').textContent = published;
   document.getElementById('count-rejected').textContent = rejected;
 
-  const filtered = currentFilter === 'all' ? allDrafts : allDrafts.filter(r => getStatus(r.status) === currentFilter);
+  const filtered = currentFilter === 'all' ? allDrafts.filter(r => getStatus(r.status) === 'pending') : allDrafts.filter(r => getStatus(r.status) === currentFilter);
 
   if (!filtered.length) {
-    main.innerHTML = `<div class="empty"><div class="empty-icon">${currentFilter === 'all' ? '📝' : currentFilter === 'pending' ? '⏳' : currentFilter === 'published' ? '✅' : '🗑'}</div><h2>No ${currentFilter === 'all' ? '' : currentFilter + ' '}drafts</h2><p>${currentFilter === 'all' ? 'Click "+ New Draft" to generate one, or wait for the next scheduled run (Mon/Wed/Fri 6AM CT)' : 'No drafts with this status yet.'}</p></div>`;
+    const msgs = { all: ['📝', 'Needs Attention', 'No posts need your attention right now. Click "+ New Draft" to generate one.'], pending: ['⏳', 'pending', 'No drafts with this status yet.'], scheduled: ['📅', 'scheduled', 'No posts scheduled yet. Approve a pending draft to schedule it.'], published: ['✅', 'published', 'No posts published yet.'], rejected: ['🗑', 'rejected', 'No rejected posts.'] };
+    const m = msgs[currentFilter] || msgs.all;
+    main.innerHTML = `<div class="empty"><div class="empty-icon">${m[0]}</div><h2>No ${m[1]} drafts</h2><p>${m[2]}</p></div>`;
     return;
   }
 
