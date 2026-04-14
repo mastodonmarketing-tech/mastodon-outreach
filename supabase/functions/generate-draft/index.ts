@@ -59,26 +59,33 @@ async function fetchRSS(url: string): Promise<string[]> {
   }
 }
 
-async function callGemini(model: string, prompt: string, systemPrompt?: string, jsonMode = false) {
-  const body: any = {
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: jsonMode ? 0.3 : 0.8,
-      maxOutputTokens: jsonMode ? 1000 : 1200,
-      thinkingConfig: { thinkingBudget: 0 },
-    },
-  };
-  if (jsonMode) body.generationConfig.responseMimeType = "application/json";
-  if (systemPrompt) body.system_instruction = { parts: [{ text: systemPrompt }] };
+const FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"];
 
-  const res = await fetch(`${GEMINI_URL}/${model}:generateContent?key=${GEMINI_KEY}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${JSON.stringify(data)}`);
-  return data.candidates[0].content.parts[0].text;
+async function callGemini(model: string, prompt: string, systemPrompt?: string, jsonMode = false) {
+  const models = model === "gemini-2.5-flash" ? FALLBACK_MODELS : [model];
+
+  for (const m of models) {
+    const body: any = {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: jsonMode ? 0.3 : 0.8,
+        maxOutputTokens: jsonMode ? 1000 : 1200,
+      },
+    };
+    if (jsonMode) body.generationConfig.responseMimeType = "application/json";
+    if (systemPrompt) body.system_instruction = { parts: [{ text: systemPrompt }] };
+
+    const res = await fetch(`${GEMINI_URL}/${m}:generateContent?key=${GEMINI_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (res.ok) return data.candidates[0].content.parts[0].text;
+    if (res.status !== 503 && res.status !== 429) throw new Error(`Gemini ${res.status}: ${JSON.stringify(data)}`);
+    // 503 or 429 = try next model
+  }
+  throw new Error("All Gemini models unavailable. Try again in a minute.");
 }
 
 serve(async (req) => {

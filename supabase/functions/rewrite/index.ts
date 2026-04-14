@@ -67,24 +67,30 @@ ${notes}
 
 Revise the post according to these instructions. Keep the same topic and source. Follow all voice, format, and psychology rules.`;
 
-    const body = {
-      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 1200,
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-    };
+    const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest"];
+    let geminiData: any;
 
-    const geminiRes = await fetch(`${GEMINI_URL}/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    for (const model of models) {
+      const body = {
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1200,
+        },
+      };
 
-    const geminiData = await geminiRes.json();
-    if (!geminiRes.ok) throw new Error(`Gemini error: ${JSON.stringify(geminiData)}`);
+      const geminiRes = await fetch(`${GEMINI_URL}/${model}:generateContent?key=${GEMINI_KEY}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      geminiData = await geminiRes.json();
+      if (geminiRes.ok) break;
+      if (geminiRes.status !== 503 && geminiRes.status !== 429) throw new Error(`Gemini error: ${JSON.stringify(geminiData)}`);
+      if (model === models[models.length - 1]) throw new Error("All Gemini models unavailable. Try again in a minute.");
+    }
     const newDraft = geminiData.candidates[0].content.parts[0].text;
 
     // Update draft in Supabase
