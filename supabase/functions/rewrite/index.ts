@@ -80,23 +80,33 @@ Revise the post according to these instructions. Keep the same topic and source.
       },
     };
 
+    const models = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
     let newDraft = "";
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (attempt > 0) await new Promise(r => setTimeout(r, 3000));
-      const geminiRes = await fetch(`${GEMINI_URL}/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const geminiData = await geminiRes.json();
-      if (geminiRes.ok) {
-        newDraft = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        break;
+    const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+    outer: for (const model of models) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt > 0) await wait(5000);
+        try {
+          const geminiRes = await fetch(`${GEMINI_URL}/${model}:generateContent?key=${GEMINI_KEY}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const geminiData = await geminiRes.json();
+          if (geminiRes.ok) {
+            newDraft = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            if (newDraft) break outer;
+          }
+          if (geminiRes.status !== 503 && geminiRes.status !== 429 && geminiRes.status !== 404) {
+            throw new Error(`Gemini error: ${JSON.stringify(geminiData).substring(0, 200)}`);
+          }
+        } catch (e) {
+          if ((e as Error).message.startsWith("Gemini error")) throw e;
+        }
       }
-      if (geminiRes.status !== 503 && geminiRes.status !== 429) throw new Error(`Gemini error: ${JSON.stringify(geminiData)}`);
-      if (attempt === 2) throw new Error("Gemini unavailable after 3 retries. Try again in a minute.");
     }
-    if (!newDraft) throw new Error("Gemini returned empty response");
+    if (!newDraft) throw new Error("All Gemini models unavailable. Wait a minute and try again.");
 
     // Update draft in Supabase
     const { error: updateErr } = await supabase
