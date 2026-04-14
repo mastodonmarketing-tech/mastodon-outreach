@@ -64,7 +64,7 @@ async function fetchRSS(url: string): Promise<RSSItem[]> {
   }
 }
 
-const FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+const FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash-001"];
 
 async function callGemini(model: string, prompt: string, systemPrompt?: string, jsonMode = false) {
   const models = model === "gemini-2.5-flash" ? FALLBACK_MODELS : [model];
