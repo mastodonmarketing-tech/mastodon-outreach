@@ -105,11 +105,29 @@ serve(async (req) => {
     }
     if (allRSS.length === 0) throw new Error("No RSS items found");
 
+    // Get existing topics to avoid duplicates
+    const supabaseForQuery = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+    const { data: existing } = await supabaseForQuery
+      .from("linkedin_drafts")
+      .select("topic")
+      .order("created_at", { ascending: false })
+      .limit(20);
+    const usedTopics = (existing || []).map((r: any) => r.topic?.toLowerCase()).filter(Boolean);
+
+    // Filter out headlines similar to existing topics
+    const freshRSS = allRSS.filter(item =>
+      !usedTopics.some(t => item.title.toLowerCase().includes(t.substring(0, 20)) || t.includes(item.title.toLowerCase().substring(0, 20)))
+    );
+    const rssToUse = freshRSS.length > 0 ? freshRSS : allRSS;
+
     // Build numbered list of headlines only (no URLs - they break JSON)
-    const headlineList = allRSS.map((item, i) => `${i + 1}. ${item.title}`).join("\n");
+    const headlineList = rssToUse.map((item, i) => `${i + 1}. ${item.title}`).join("\n");
 
     // 2. Intelligence - pick topic by number
-    const intelligencePrompt = `Pick the best headline number for a contractor marketing LinkedIn post.
+    const intelligencePrompt = `Pick the best headline number for a contractor marketing LinkedIn post. Pick something DIFFERENT each time.
 Return ONLY this JSON, keep ALL values under 10 words: {"pick":1,"topic":"short","bucket":"GROWTH","urgency":5,"angle":"short"}
 
 ${headlineList}`;
@@ -128,7 +146,7 @@ ${headlineList}`;
     };
     const intelligence = safeParseJson(intelligenceRaw);
     const pickIndex = (intelligence.pick || 1) - 1;
-    const pickedRSS = allRSS[Math.min(pickIndex, allRSS.length - 1)];
+    const pickedRSS = rssToUse[Math.min(pickIndex, rssToUse.length - 1)];
     const item = { ...intelligence, source: pickedRSS.url, topic: pickedRSS.title };
 
     // 3. Generate draft
