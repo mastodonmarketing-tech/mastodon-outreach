@@ -156,7 +156,8 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
   </div>
   <div class="header-actions">
     <button class="btn-header" onclick="loadDrafts()" id="refreshBtn">Refresh</button>
-    <button class="btn-header primary" onclick="generateDraft()" id="generateBtn">+ New Draft</button>
+    <button class="btn-header" onclick="generateDraft()" id="generateBtn">+ New Draft</button>
+    <button class="btn-header primary" onclick="generateBatch()" id="batchBtn">Generate 5 Posts</button>
   </div>
 </div>
 
@@ -464,6 +465,30 @@ async function generateDraft() {
   } catch (err) { showToast('Error: ' + err.message, 'error'); }
   btn.disabled = false;
   btn.innerHTML = '+ New Draft';
+}
+
+async function generateBatch() {
+  const btn = document.getElementById('batchBtn');
+  btn.disabled = true;
+  const total = 5;
+  let done = 0;
+  btn.innerHTML = `<div class="spinner"></div> 0/${total}`;
+  for (let i = 0; i < total; i++) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-draft`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+      });
+      const data = await res.json();
+      if (!data.ok) { showToast(`Draft ${i+1} failed: ${data.error}`, 'error'); continue; }
+      done++;
+      btn.innerHTML = `<div class="spinner"></div> ${done}/${total}`;
+      loadDrafts();
+    } catch (err) { showToast(`Draft ${i+1} error: ${err.message}`, 'error'); }
+  }
+  showToast(`Generated ${done} of ${total} drafts!`, 'success');
+  btn.disabled = false;
+  btn.innerHTML = 'Generate 5 Posts';
+  loadDrafts();
 }
 
 loadDrafts();
