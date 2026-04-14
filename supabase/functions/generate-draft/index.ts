@@ -72,7 +72,8 @@ async function callGemini(model: string, prompt: string, systemPrompt?: string, 
         maxOutputTokens: jsonMode ? 1000 : 1200,
       },
     };
-    if (jsonMode) body.generationConfig.responseMimeType = "application/json";
+    // Only use JSON mode on models that support it well
+    if (jsonMode && m.includes("2.5")) body.generationConfig.responseMimeType = "application/json";
     if (systemPrompt) body.system_instruction = { parts: [{ text: systemPrompt }] };
 
     const res = await fetch(`${GEMINI_URL}/${m}:generateContent?key=${GEMINI_KEY}`, {
@@ -83,7 +84,6 @@ async function callGemini(model: string, prompt: string, systemPrompt?: string, 
     const data = await res.json();
     if (res.ok) return data.candidates[0].content.parts[0].text;
     if (res.status !== 503 && res.status !== 429) throw new Error(`Gemini ${res.status}: ${JSON.stringify(data)}`);
-    // 503 or 429 = try next model
   }
   throw new Error("All Gemini models unavailable. Try again in a minute.");
 }
@@ -113,16 +113,21 @@ NEWS ITEMS:
 ${rssText}`;
 
     const intelligenceRaw = await callGemini("gemini-2.5-flash", intelligencePrompt, undefined, true);
-    const cleanJson = (s: string) => {
+    const safeParseJson = (s: string) => {
+      // Strip markdown fences
       let c = s.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      // Try parsing as-is first
-      try { JSON.parse(c); return c; } catch {}
-      // Fix common issues: extract JSON object/array
-      const match = c.match(/[\[{][\s\S]*[\]}]/);
+      try { return JSON.parse(c); } catch {}
+      // Extract JSON object
+      const match = c.match(/\{[\s\S]*\}/);
       if (match) c = match[0];
-      return c;
+      try { return JSON.parse(c); } catch {}
+      // Last resort: fix common issues
+      c = c.replace(/[\r\n]+/g, ' ').replace(/\t/g, ' ');
+      try { return JSON.parse(c); } catch (e) {
+        throw new Error(`JSON parse failed: ${(e as Error).message}\nRaw: ${s.substring(0, 200)}`);
+      }
     };
-    const intelligence = JSON.parse(cleanJson(intelligenceRaw));
+    const intelligence = safeParseJson(intelligenceRaw);
     const item = intelligence.selected_item;
 
     // 3. Generate draft
@@ -147,7 +152,7 @@ POST TO SCORE:
 ${draft}`;
 
     const qcRaw = await callGemini("gemini-2.5-flash", qcPrompt, undefined, true);
-    const qc = JSON.parse(cleanJson(qcRaw));
+    const qc = safeParseJson(qcRaw);
 
     // 5. Insert into Supabase
     const supabase = createClient(
