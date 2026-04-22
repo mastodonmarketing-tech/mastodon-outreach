@@ -153,6 +153,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 .calendar-day-number { font-size: 12px; font-weight: 700; margin-bottom: 6px; color: #666666; }
 .calendar-day.today .calendar-day-number { color: #553d67; }
 .calendar-event { position: relative; width: 100%; padding: 6px 7px; margin-bottom: 6px; background: #553d67; color: #ffffff; border-radius: 6px; cursor: default; text-align: left; box-shadow: 0 2px 8px rgba(85,61,103,0.16); }
+.calendar-event.published { background: #9e9e9e; color: #ffffff; opacity: 0.72; box-shadow: none; }
 .calendar-event:hover, .calendar-event:focus { z-index: 90; }
 .calendar-event:focus { outline: 2px solid #c7a7dc; outline-offset: 2px; }
 .calendar-event-time { display: block; font-size: 10px; font-weight: 700; opacity: 0.9; margin-bottom: 2px; }
@@ -347,22 +348,37 @@ function calendarDayKey(date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
+function getCalendarDate(row) {
+  const status = getStatus(row.status);
+  const rawDate = status === 'published'
+    ? (row.scheduled_date || row.scheduled_for || row.created_at)
+    : row.scheduled_for;
+  if (!rawDate) return null;
+  const date = new Date(rawDate);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function setCalendarToRelevantMonth() {
-  const scheduledRows = allDrafts
-    .filter(r => getStatus(r.status) === 'scheduled' && r.scheduled_for)
-    .sort((a, b) => new Date(a.scheduled_for) - new Date(b.scheduled_for));
-  if (!scheduledRows.length) return;
+  const calendarRows = allDrafts
+    .map(row => ({ row, status: getStatus(row.status), date: getCalendarDate(row) }))
+    .filter(item => item.date && (item.status === 'scheduled' || item.status === 'published'))
+    .sort((a, b) => a.date - b.date);
+  if (!calendarRows.length) return;
   const now = new Date();
-  const nextScheduled = scheduledRows.find(r => new Date(r.scheduled_for) >= now) || scheduledRows[0];
-  const d = new Date(nextScheduled.scheduled_for);
+  const nextScheduled = calendarRows.find(item => item.status === 'scheduled' && item.date >= now);
+  const publishedRows = calendarRows.filter(item => item.status === 'published');
+  const latestPublished = publishedRows[publishedRows.length - 1];
+  const target = nextScheduled || latestPublished || calendarRows[0];
+  const d = target.date;
   calendarMonth = new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
 function renderCalendar() {
   const main = document.getElementById('main');
-  const scheduledRows = allDrafts
-    .filter(r => getStatus(r.status) === 'scheduled' && r.scheduled_for)
-    .sort((a, b) => new Date(a.scheduled_for) - new Date(b.scheduled_for));
+  const calendarRows = allDrafts
+    .map(row => ({ row, status: getStatus(row.status), date: getCalendarDate(row) }))
+    .filter(item => item.date && (item.status === 'scheduled' || item.status === 'published'))
+    .sort((a, b) => a.date - b.date);
 
   const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
   const gridStart = new Date(start);
@@ -371,11 +387,10 @@ function renderCalendar() {
   const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const rowsByDay = new Map();
 
-  scheduledRows.forEach(row => {
-    const d = new Date(row.scheduled_for);
-    const key = calendarDayKey(d);
+  calendarRows.forEach(item => {
+    const key = calendarDayKey(item.date);
     if (!rowsByDay.has(key)) rowsByDay.set(key, []);
-    rowsByDay.get(key).push(row);
+    rowsByDay.get(key).push(item);
   });
 
   const cells = [];
@@ -388,28 +403,33 @@ function renderCalendar() {
     cells.push(`
       <div class="calendar-day ${inMonth ? '' : 'muted'} ${sameDay(day, today) ? 'today' : ''}">
         <div class="calendar-day-number">${day.getDate()}</div>
-        ${events.map(row => {
-          const scheduled = new Date(row.scheduled_for);
+        ${events.map(item => {
+          const row = item.row;
+          const scheduled = item.date;
+          const isPublished = item.status === 'published';
           const draftText = cleanDraftText(row.draft);
           const preview = escapeHtml(draftText);
           const topic = escapeHtml(row.topic || 'Untitled Draft');
           const attrTopic = escapeAttr(row.topic || 'Untitled Draft');
           const bucket = escapeHtml(row.bucket || 'N/A');
+          const statusLabel = isPublished ? 'Posted' : 'Scheduled';
           const image = row.image_url ? `<img class="calendar-preview-image" src="${escapeAttr(row.image_url)}" alt="">` : '';
-          return `
-            <div class="calendar-event" tabindex="0" aria-label="${attrTopic}" onmouseenter="positionCalendarPreview(this)" onfocus="positionCalendarPreview(this)">
-              <span class="calendar-event-time">${formatScheduledTime(scheduled)}</span>
-              <span class="calendar-event-title">${topic}</span>
-              <span class="calendar-preview">
-                <span class="calendar-preview-title">${topic}</span>
-                <span class="calendar-preview-meta">${bucket} | ${scheduled.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' })} at ${formatScheduledTime(scheduled)}</span>
+          const actions = isPublished ? '' : `
                 <span class="calendar-preview-actions">
                   <button class="calendar-action" type="button" onclick="event.stopPropagation(); openEditModal(${row.id})">Edit</button>
                   <button class="calendar-action" type="button" onclick="event.stopPropagation(); openRewriteModal(${row.id})">Rewrite</button>
                   <button class="calendar-action" type="button" onclick="event.stopPropagation(); regenerateImage(${row.id})">Regenerate Image</button>
                   <button class="calendar-action" type="button" onclick="event.stopPropagation(); rescheduleNext(${row.id})">Next Slot</button>
                   <button class="calendar-action danger" type="button" onclick="event.stopPropagation(); deleteDraft(${row.id})">Delete</button>
-                </span>
+                </span>`;
+          return `
+            <div class="calendar-event ${isPublished ? 'published' : 'scheduled'}" tabindex="0" aria-label="${attrTopic}" onmouseenter="positionCalendarPreview(this)" onfocus="positionCalendarPreview(this)">
+              <span class="calendar-event-time">${isPublished ? 'Posted' : formatScheduledTime(scheduled)}</span>
+              <span class="calendar-event-title">${topic}</span>
+              <span class="calendar-preview">
+                <span class="calendar-preview-title">${topic}</span>
+                <span class="calendar-preview-meta">${statusLabel} | ${bucket} | ${scheduled.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' })} at ${formatScheduledTime(scheduled)}</span>
+                ${actions}
                 ${image}
                 <span class="calendar-preview-text">${preview}</span>
               </span>
@@ -456,7 +476,7 @@ function renderDrafts() {
   document.getElementById('count-all').textContent = pending;
   document.getElementById('count-pending').textContent = pending;
   document.getElementById('count-scheduled').textContent = scheduled;
-  document.getElementById('count-calendar').textContent = scheduled;
+  document.getElementById('count-calendar').textContent = scheduled + published;
   document.getElementById('count-published').textContent = published;
   document.getElementById('count-rejected').textContent = rejected;
 
