@@ -120,7 +120,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 
 /* Confirm dialog */
 .confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); animation: fadeIn 0.15s; }
-.confirm-box { background: #ffffff; border: 1px solid #e0e0e0; border-radius: 14px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 16px 48px rgba(0,0,0,0.15); }
+.confirm-box { background: #ffffff; border: 1px solid #e0e0e0; border-radius: 14px; padding: 24px; max-width: 400px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 16px 48px rgba(0,0,0,0.15); }
 .confirm-box h3 { font-size: 16px; color: #1a1a1a; margin-bottom: 8px; }
 .confirm-box p { font-size: 14px; color: #666666; line-height: 1.5; margin-bottom: 20px; }
 .confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
@@ -161,7 +161,16 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 .calendar-event:hover .calendar-preview, .calendar-event:focus .calendar-preview { display: block; }
 .calendar-preview-title { display: block; font-size: 13px; line-height: 1.35; font-weight: 700; margin-bottom: 6px; color: #1a1a1a; }
 .calendar-preview-meta { display: block; font-size: 11px; font-weight: 700; color: #553d67; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.4px; }
+.calendar-preview-image { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; border: 1px solid #e0e0e0; margin-bottom: 10px; display: block; }
 .calendar-preview-text { display: block; font-size: 12px; line-height: 1.55; color: #333333; white-space: pre-wrap; }
+.calendar-preview-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eeeeee; }
+.calendar-action { border: 1px solid #d8d8d8; background: #ffffff; color: #553d67; border-radius: 6px; padding: 5px 8px; font-size: 11px; font-weight: 700; font-family: inherit; cursor: pointer; }
+.calendar-action:hover { background: #f8f5fa; border-color: #553d67; }
+.calendar-action.danger { color: #c62828; border-color: #ef9a9a; }
+.calendar-action.danger:hover { background: #ffebee; }
+.modal-textarea { width: 100%; min-height: 260px; padding: 12px; background: #fafafa; border: 1px solid #d0d0d0; border-radius: 8px; color: #1a1a1a; font-size: 13px; font-family: inherit; resize: vertical; line-height: 1.5; margin: 12px 0; }
+.modal-textarea:focus { outline: none; border-color: #553d67; box-shadow: 0 0 0 3px rgba(85,61,103,0.15); }
+.modal-image { width: 100%; border-radius: 8px; border: 1px solid #e0e0e0; margin-top: 12px; display: block; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -257,6 +266,10 @@ function formatDraft(text) {
 
 function cleanDraftText(text) {
   return text ? String(text).replace(/\[IMAGE:[^\]]+\]\s*/gi, '').trim() : '';
+}
+
+function findDraft(id) {
+  return allDrafts.find(r => Number(r.id) === Number(id));
 }
 
 function formatFeedback(fb) {
@@ -356,14 +369,23 @@ function renderCalendar() {
           const topic = escapeHtml(row.topic || 'Untitled Draft');
           const attrTopic = escapeAttr(row.topic || 'Untitled Draft');
           const bucket = escapeHtml(row.bucket || 'N/A');
+          const image = row.image_url ? `<img class="calendar-preview-image" src="${escapeAttr(row.image_url)}" alt="">` : '';
           return `
-            <div class="calendar-event" role="button" tabindex="0" aria-label="${attrTopic}">
+            <div class="calendar-event" tabindex="0" aria-label="${attrTopic}">
               <span class="calendar-event-time">${formatScheduledTime(scheduled)}</span>
               <span class="calendar-event-title">${topic}</span>
               <span class="calendar-preview">
                 <span class="calendar-preview-title">${topic}</span>
                 <span class="calendar-preview-meta">${bucket} | ${scheduled.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' })} at ${formatScheduledTime(scheduled)}</span>
+                ${image}
                 <span class="calendar-preview-text">${preview}</span>
+                <span class="calendar-preview-actions">
+                  <button class="calendar-action" type="button" onclick="event.stopPropagation(); openEditModal(${row.id})">Edit</button>
+                  <button class="calendar-action" type="button" onclick="event.stopPropagation(); openRewriteModal(${row.id})">Rewrite</button>
+                  <button class="calendar-action" type="button" onclick="event.stopPropagation(); regenerateImage(${row.id})">Regenerate Image</button>
+                  <button class="calendar-action" type="button" onclick="event.stopPropagation(); rescheduleNext(${row.id})">Next Slot</button>
+                  <button class="calendar-action danger" type="button" onclick="event.stopPropagation(); deleteDraft(${row.id})">Delete</button>
+                </span>
               </span>
             </div>`;
         }).join('')}
@@ -502,6 +524,144 @@ function showToast(msg, type) {
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3500);
+}
+
+function openModal(title, bodyHtml, actionsHtml) {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  overlay.innerHTML = `
+    <div class="confirm-box" style="max-width:680px">
+      <h3>${escapeHtml(title)}</h3>
+      ${bodyHtml}
+      <div class="confirm-actions">${actionsHtml}</div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  return overlay;
+}
+
+function openEditModal(id) {
+  const row = findDraft(id);
+  if (!row) return;
+  const body = `
+    ${row.image_url ? `<img class="modal-image" src="${escapeAttr(row.image_url)}" alt="">` : ''}
+    <textarea class="modal-textarea" id="edit-draft-${id}">${escapeHtml(cleanDraftText(row.draft))}</textarea>`;
+  const actions = `
+    <button class="btn btn-reject" onclick="this.closest('.confirm-overlay').remove()">Cancel</button>
+    <button class="btn btn-approve" onclick="saveEdit(${id}, this)">Save Edit</button>`;
+  const overlay = openModal('Edit Post', body, actions);
+  setTimeout(() => overlay.querySelector(`#edit-draft-${id}`)?.focus(), 0);
+}
+
+function openRewriteModal(id) {
+  const row = findDraft(id);
+  if (!row) return;
+  const body = `
+    ${row.image_url ? `<img class="modal-image" src="${escapeAttr(row.image_url)}" alt="">` : ''}
+    <textarea class="modal-textarea" id="rewrite-notes-${id}" placeholder="What should change? e.g. make it sharper, more specific, less salesy..."></textarea>`;
+  const actions = `
+    <button class="btn btn-reject" onclick="this.closest('.confirm-overlay').remove()">Cancel</button>
+    <button class="btn btn-rewrite" onclick="submitRewrite(${id}, this)">Rewrite</button>`;
+  const overlay = openModal('Rewrite Post', body, actions);
+  setTimeout(() => overlay.querySelector(`#rewrite-notes-${id}`)?.focus(), 0);
+}
+
+async function saveEdit(id, btn) {
+  const draft = document.getElementById(`edit-draft-${id}`).value.trim();
+  if (!draft) return;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/rewrite`, {
+      method: 'POST', headers: fnHdrs,
+      body: JSON.stringify({ draft_id: id, action: 'edit', draft })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Failed');
+    btn.closest('.confirm-overlay').remove();
+    showToast('Post edited', 'success');
+    loadDrafts();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+    btn.disabled = false;
+  }
+}
+
+async function submitRewrite(id, btn) {
+  const notes = document.getElementById(`rewrite-notes-${id}`).value.trim();
+  if (!notes) return;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/rewrite`, {
+      method: 'POST', headers: fnHdrs,
+      body: JSON.stringify({ draft_id: id, notes })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Failed');
+    btn.closest('.confirm-overlay').remove();
+    showToast('Post rewritten', 'success');
+    loadDrafts();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+    btn.disabled = false;
+  }
+}
+
+async function regenerateImage(id) {
+  try {
+    showToast('Regenerating image...', 'success');
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/rewrite`, {
+      method: 'POST', headers: fnHdrs,
+      body: JSON.stringify({ draft_id: id, action: 'regenerate_image' })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Failed');
+    showToast('Image regenerated', 'success');
+    loadDrafts();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+async function rescheduleNext(id) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/approve`, {
+      method: 'POST', headers: fnHdrs,
+      body: JSON.stringify({ draft_id: id, action: 'next_slot' })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Failed');
+    showToast('Moved to next open slot', 'success');
+    loadDrafts();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+function deleteDraft(id) {
+  const row = findDraft(id);
+  const title = row?.topic || 'this post';
+  const actions = `
+    <button class="btn btn-rewrite" onclick="this.closest('.confirm-overlay').remove()">Cancel</button>
+    <button class="btn btn-reject" onclick="confirmDeleteDraft(${id}, this)">Delete</button>`;
+  openModal('Delete Post?', `<p>Delete ${escapeHtml(title)} permanently?</p>`, actions);
+}
+
+async function confirmDeleteDraft(id, btn) {
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/approve`, {
+      method: 'POST', headers: fnHdrs,
+      body: JSON.stringify({ draft_id: id, action: 'delete' })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Failed');
+    btn.closest('.confirm-overlay').remove();
+    showToast('Post deleted', 'success');
+    loadDrafts();
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+    btn.disabled = false;
+  }
 }
 
 function toggleRewrite(id) {

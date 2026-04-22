@@ -44,6 +44,54 @@ function getNextSlot(existingDates: string[]): Date {
   return fb;
 }
 
+function getNextQueueSlot(existingDates: string[]): Date {
+  if (!existingDates.length) return getNextSlot([]);
+  const taken = new Set(existingDates.map(d => new Date(d).toISOString().split("T")[0]));
+  const latest = existingDates
+    .map(d => new Date(d))
+    .sort((a, b) => b.getTime() - a.getTime())[0];
+  const candidate = new Date(latest);
+  candidate.setUTCDate(candidate.getUTCDate() + 1);
+  candidate.setUTCMinutes(0, 0, 0);
+
+  for (let i = 0; i < 30; i++) {
+    const day = candidate.getUTCDay();
+    const dateStr = candidate.toISOString().split("T")[0];
+    if (day >= 1 && day <= 5 && !taken.has(dateStr)) {
+      candidate.setUTCHours(SLOT_HOURS_UTC[day] || 14);
+      return candidate;
+    }
+    candidate.setUTCDate(candidate.getUTCDate() + 1);
+  }
+
+  const fb = new Date(latest);
+  fb.setUTCDate(fb.getUTCDate() + 7);
+  fb.setUTCHours(14, 0, 0, 0);
+  return fb;
+}
+
+async function scheduleNext(supabase: any, draftId: number, appendToQueue = false) {
+  const { data: scheduled } = await supabase
+    .from("linkedin_drafts")
+    .select("id, scheduled_for")
+    .eq("status", "Scheduled")
+    .not("scheduled_for", "is", null);
+
+  const existingDates = (scheduled || [])
+    .filter((r: any) => Number(r.id) !== Number(draftId))
+    .map((r: any) => r.scheduled_for)
+    .filter(Boolean);
+  const nextSlot = appendToQueue ? getNextQueueSlot(existingDates) : getNextSlot(existingDates);
+
+  const { error } = await supabase.from("linkedin_drafts").update({
+    status: "Scheduled",
+    scheduled_for: nextSlot.toISOString(),
+  }).eq("id", draftId);
+  if (error) throw new Error(`Schedule failed: ${error.message}`);
+
+  return nextSlot.toISOString();
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -68,6 +116,15 @@ serve(async (req) => {
       });
     }
 
+    if (action === "delete") {
+      const { error } = await supabase.from("linkedin_drafts").delete().eq("id", draft_id);
+      if (error) throw new Error(`Delete failed: ${error.message}`);
+
+      return new Response(JSON.stringify({ ok: true, deleted: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "unschedule") {
       const { error } = await supabase.from("linkedin_drafts").update({
         status: "Pending Review",
@@ -76,6 +133,14 @@ serve(async (req) => {
       if (error) throw new Error(`Unschedule failed: ${error.message}`);
 
       return new Response(JSON.stringify({ ok: true, status: "Pending Review" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "next_slot") {
+      const next = await scheduleNext(supabase, draft_id, true);
+
+      return new Response(JSON.stringify({ ok: true, scheduled_for: next }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -124,22 +189,9 @@ serve(async (req) => {
     }
 
     // Auto-schedule: find next open weekday slot
-    const { data: scheduled } = await supabase
-      .from("linkedin_drafts")
-      .select("scheduled_for")
-      .eq("status", "Scheduled")
-      .not("scheduled_for", "is", null);
+    const next = await scheduleNext(supabase, draft_id);
 
-    const existingDates = (scheduled || []).map((r: any) => r.scheduled_for).filter(Boolean);
-    const nextSlot = getNextSlot(existingDates);
-
-    const { error: scheduleErr } = await supabase.from("linkedin_drafts").update({
-      status: "Scheduled",
-      scheduled_for: nextSlot.toISOString(),
-    }).eq("id", draft_id);
-    if (scheduleErr) throw new Error(`Schedule failed: ${scheduleErr.message}`);
-
-    return new Response(JSON.stringify({ ok: true, scheduled_for: nextSlot.toISOString() }), {
+    return new Response(JSON.stringify({ ok: true, scheduled_for: next }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {

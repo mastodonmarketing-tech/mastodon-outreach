@@ -98,9 +98,10 @@ function safeParseJson(s: string) {
   }
 }
 
-function ensureMetadata(text: string, imageDescription: string) {
+function ensureMetadata(text: string, imageDescription: string, fallbackSource = "") {
   const sourceMatch = text.match(/Source:\s*(https?:\/\/\S+)/i);
-  const sourceLine = sourceMatch ? `\n\nSource: ${sourceMatch[1]}` : "";
+  const source = sourceMatch?.[1] || fallbackSource;
+  const sourceLine = source ? `\n\nSource: ${source}` : "";
   let clean = text
     .replace(/Source:\s*https?:\/\/\S+/gi, "")
     .replace(/\[IMAGE:[\s\S]*?\]/gi, "")
@@ -163,9 +164,8 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { draft_id, notes } = await req.json();
+    const { draft_id, notes, action, draft } = await req.json();
     if (!draft_id) throw new Error("draft_id required");
-    if (!notes) throw new Error("notes required for rewrite");
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -175,11 +175,46 @@ serve(async (req) => {
     // Get original draft
     const { data: row, error } = await supabase
       .from("linkedin_drafts")
-      .select("draft, topic, bucket, image_url")
+      .select("draft, topic, bucket, image_url, status, source_url")
       .eq("id", draft_id)
       .single();
 
     if (error || !row) throw new Error(`Draft not found: ${error?.message}`);
+
+    if (action === "edit") {
+      if (!draft) throw new Error("draft required for edit");
+      const imageDescription = createImageDescription(draft, row.topic || "", row.bucket || "");
+      const editedDraft = ensureMetadata(draft, imageDescription, row.source_url || "");
+      const issues = draftIssues(editedDraft);
+      if (issues.length) throw new Error(`Edited draft failed quality checks: ${issues.join(", ")}`);
+
+      const { error: updateErr } = await supabase
+        .from("linkedin_drafts")
+        .update({ draft: editedDraft })
+        .eq("id", draft_id);
+      if (updateErr) throw new Error(`Update failed: ${updateErr.message}`);
+
+      return new Response(JSON.stringify({ ok: true, draft: editedDraft }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "regenerate_image") {
+      const imageUrl = await generatePostImage(supabase, row.draft);
+      if (!imageUrl) throw new Error("Image generation failed");
+
+      const { error: updateErr } = await supabase
+        .from("linkedin_drafts")
+        .update({ image_url: imageUrl })
+        .eq("id", draft_id);
+      if (updateErr) throw new Error(`Update failed: ${updateErr.message}`);
+
+      return new Response(JSON.stringify({ ok: true, image_url: imageUrl }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!notes) throw new Error("notes required for rewrite");
 
     // Call Gemini for rewrite
     let prompt = `ORIGINAL DRAFT:
@@ -234,7 +269,7 @@ If the topic is about AI implementation, make the advice useful for all business
 
       if (!newDraft) throw new Error("All Gemini models unavailable. Wait a minute and try again.");
       const imageDescription = createImageDescription(newDraft, row.topic || "", row.bucket || "");
-      newDraft = ensureMetadata(newDraft, imageDescription);
+      newDraft = ensureMetadata(newDraft, imageDescription, row.source_url || "");
       issues = draftIssues(newDraft);
       if (!issues.length) break;
 
@@ -257,7 +292,7 @@ ${newDraft}`;
     // Update draft in Supabase
     const { error: updateErr } = await supabase
       .from("linkedin_drafts")
-      .update({ draft: newDraft, status: "Pending Review", notes: notes, image_url: imageUrl || row.image_url || null })
+      .update({ draft: newDraft, status: row.status || "Pending Review", notes: notes, image_url: imageUrl || row.image_url || null })
       .eq("id", draft_id);
 
     if (updateErr) throw new Error(`Update failed: ${updateErr.message}`);
