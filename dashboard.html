@@ -135,6 +135,33 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 .loading-state { text-align: center; padding: 80px 20px; color: #888888; }
 .loading-state .spinner { width: 32px; height: 32px; border-width: 3px; margin-bottom: 16px; }
 
+/* Calendar */
+.calendar-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.calendar-title { font-size: 20px; font-weight: 700; color: #1a1a1a; }
+.calendar-actions { display: flex; gap: 8px; align-items: center; }
+.calendar-btn { width: 34px; height: 34px; border: 1px solid #d8d8d8; background: #ffffff; color: #553d67; border-radius: 8px; font-size: 18px; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
+.calendar-btn:hover { border-color: #553d67; background: #f8f5fa; }
+.calendar-btn.today { width: auto; padding: 0 12px; font-size: 13px; font-weight: 600; }
+.calendar-shell { background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: visible; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+.calendar-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid #e8e8e8; background: #fafafa; }
+.calendar-weekday { padding: 10px 8px; font-size: 11px; color: #666666; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); overflow: visible; }
+.calendar-day { min-height: 122px; padding: 8px; border-right: 1px solid #eeeeee; border-bottom: 1px solid #eeeeee; position: relative; background: #ffffff; }
+.calendar-day:nth-child(7n) { border-right: none; }
+.calendar-day.muted { background: #fafafa; color: #aaaaaa; }
+.calendar-day.today { background: #f8f5fa; }
+.calendar-day-number { font-size: 12px; font-weight: 700; margin-bottom: 6px; color: #666666; }
+.calendar-day.today .calendar-day-number { color: #553d67; }
+.calendar-event { position: relative; width: 100%; padding: 6px 7px; margin-bottom: 6px; background: #553d67; color: #ffffff; border: none; border-radius: 6px; cursor: default; text-align: left; font-family: inherit; box-shadow: 0 2px 8px rgba(85,61,103,0.16); }
+.calendar-event:focus { outline: 2px solid #c7a7dc; outline-offset: 2px; z-index: 20; }
+.calendar-event-time { display: block; font-size: 10px; font-weight: 700; opacity: 0.9; margin-bottom: 2px; }
+.calendar-event-title { display: block; font-size: 11px; line-height: 1.25; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calendar-preview { display: none; position: absolute; left: 0; top: calc(100% + 8px); width: min(360px, 80vw); max-height: 320px; overflow-y: auto; padding: 12px; background: #ffffff; color: #1a1a1a; border: 1px solid #d8d8d8; border-radius: 8px; box-shadow: 0 16px 40px rgba(0,0,0,0.18); z-index: 80; }
+.calendar-event:hover .calendar-preview, .calendar-event:focus .calendar-preview { display: block; }
+.calendar-preview-title { display: block; font-size: 13px; line-height: 1.35; font-weight: 700; margin-bottom: 6px; color: #1a1a1a; }
+.calendar-preview-meta { display: block; font-size: 11px; font-weight: 700; color: #553d67; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.4px; }
+.calendar-preview-text { display: block; font-size: 12px; line-height: 1.55; color: #333333; white-space: pre-wrap; }
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -148,6 +175,12 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
   .scores { flex-wrap: wrap; }
   .card-actions { flex-direction: column; }
   .btn { justify-content: center; }
+  .calendar-toolbar { align-items: flex-start; flex-direction: column; }
+  .calendar-weekday { padding: 8px 2px; font-size: 10px; }
+  .calendar-day { min-height: 92px; padding: 5px; }
+  .calendar-event { padding: 5px; }
+  .calendar-event-title { font-size: 10px; }
+  .calendar-preview { position: fixed; left: 12px; right: 12px; top: auto; bottom: 16px; width: auto; max-height: 45vh; }
 }
 </style>
 </head>
@@ -169,6 +202,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
   <div class="tab active" data-filter="all">Needs Attention <span class="tab-count" id="count-all">0</span></div>
   <div class="tab" data-filter="pending">Pending <span class="tab-count" id="count-pending">0</span></div>
   <div class="tab" data-filter="scheduled">Scheduled <span class="tab-count" id="count-scheduled">0</span></div>
+  <div class="tab" data-filter="calendar">Calendar <span class="tab-count" id="count-calendar">0</span></div>
   <div class="tab" data-filter="published">Published <span class="tab-count" id="count-published">0</span></div>
   <div class="tab" data-filter="rejected">Rejected <span class="tab-count" id="count-rejected">0</span></div>
 </div>
@@ -185,18 +219,23 @@ const hdrs = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`
 const fnHdrs = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
 let allDrafts = [];
 let currentFilter = 'all';
+let calendarMonth = new Date();
+calendarMonth.setDate(1);
 
 // Tabs
 document.getElementById('tabs').addEventListener('click', e => {
   const tab = e.target.closest('.tab');
   if (!tab) return;
+  const previousFilter = currentFilter;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   tab.classList.add('active');
   currentFilter = tab.dataset.filter;
+  if (currentFilter === 'calendar' && previousFilter !== 'calendar') setCalendarToRelevantMonth();
   renderDrafts();
 });
 
 function escapeHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
+function escapeAttr(s) { return escapeHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function getStatus(s) {
   if (!s) return 'pending';
@@ -213,6 +252,10 @@ function formatDraft(text) {
   let imageSuggestion = imageMatch ? imageMatch[1].trim() : null;
   let clean = text.replace(/\[IMAGE:[^\]]+\]\s*/gi, '').trim();
   return { clean: escapeHtml(clean), imageSuggestion };
+}
+
+function cleanDraftText(text) {
+  return text ? String(text).replace(/\[IMAGE:[^\]]+\]\s*/gi, '').trim() : '';
 }
 
 function formatFeedback(fb) {
@@ -235,6 +278,110 @@ function scoreColor(score) {
   if (score >= 7) return 'good';
   if (score >= 5) return 'mid';
   return 'low';
+}
+
+function sameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function monthLabel(d) {
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function shiftCalendarMonth(delta) {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + delta, 1);
+  renderDrafts();
+}
+
+function showCurrentMonth() {
+  calendarMonth = new Date();
+  calendarMonth.setDate(1);
+  renderDrafts();
+}
+
+function formatScheduledTime(date) {
+  return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function calendarDayKey(date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function setCalendarToRelevantMonth() {
+  const scheduledRows = allDrafts
+    .filter(r => getStatus(r.status) === 'scheduled' && r.scheduled_for)
+    .sort((a, b) => new Date(a.scheduled_for) - new Date(b.scheduled_for));
+  if (!scheduledRows.length) return;
+  const now = new Date();
+  const nextScheduled = scheduledRows.find(r => new Date(r.scheduled_for) >= now) || scheduledRows[0];
+  const d = new Date(nextScheduled.scheduled_for);
+  calendarMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function renderCalendar() {
+  const main = document.getElementById('main');
+  const scheduledRows = allDrafts
+    .filter(r => getStatus(r.status) === 'scheduled' && r.scheduled_for)
+    .sort((a, b) => new Date(a.scheduled_for) - new Date(b.scheduled_for));
+
+  const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+  const gridStart = new Date(start);
+  gridStart.setDate(start.getDate() - start.getDay());
+  const today = new Date();
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const rowsByDay = new Map();
+
+  scheduledRows.forEach(row => {
+    const d = new Date(row.scheduled_for);
+    const key = calendarDayKey(d);
+    if (!rowsByDay.has(key)) rowsByDay.set(key, []);
+    rowsByDay.get(key).push(row);
+  });
+
+  const cells = [];
+  for (let i = 0; i < 42; i++) {
+    const day = new Date(gridStart);
+    day.setDate(gridStart.getDate() + i);
+    const inMonth = day.getMonth() === calendarMonth.getMonth();
+    const events = rowsByDay.get(calendarDayKey(day)) || [];
+
+    cells.push(`
+      <div class="calendar-day ${inMonth ? '' : 'muted'} ${sameDay(day, today) ? 'today' : ''}">
+        <div class="calendar-day-number">${day.getDate()}</div>
+        ${events.map(row => {
+          const scheduled = new Date(row.scheduled_for);
+          const draftText = cleanDraftText(row.draft);
+          const preview = escapeHtml(draftText);
+          const topic = escapeHtml(row.topic || 'Untitled Draft');
+          const attrTopic = escapeAttr(row.topic || 'Untitled Draft');
+          const bucket = escapeHtml(row.bucket || 'N/A');
+          return `
+            <button class="calendar-event" type="button" aria-label="${attrTopic}">
+              <span class="calendar-event-time">${formatScheduledTime(scheduled)}</span>
+              <span class="calendar-event-title">${topic}</span>
+              <span class="calendar-preview">
+                <span class="calendar-preview-title">${topic}</span>
+                <span class="calendar-preview-meta">${bucket} | ${scheduled.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' })} at ${formatScheduledTime(scheduled)}</span>
+                <span class="calendar-preview-text">${preview}</span>
+              </span>
+            </button>`;
+        }).join('')}
+      </div>`);
+  }
+
+  main.innerHTML = `
+    <div class="calendar-toolbar">
+      <div class="calendar-title">${monthLabel(calendarMonth)}</div>
+      <div class="calendar-actions">
+        <button class="calendar-btn" type="button" onclick="shiftCalendarMonth(-1)" aria-label="Previous month">&#8249;</button>
+        <button class="calendar-btn today" type="button" onclick="showCurrentMonth()">Today</button>
+        <button class="calendar-btn" type="button" onclick="shiftCalendarMonth(1)" aria-label="Next month">&#8250;</button>
+      </div>
+    </div>
+    <div class="calendar-shell">
+      <div class="calendar-weekdays">${weekdays.map(day => `<div class="calendar-weekday">${day}</div>`).join('')}</div>
+      <div class="calendar-grid">${cells.join('')}</div>
+    </div>`;
 }
 
 async function loadDrafts() {
@@ -260,8 +407,14 @@ function renderDrafts() {
   document.getElementById('count-all').textContent = pending;
   document.getElementById('count-pending').textContent = pending;
   document.getElementById('count-scheduled').textContent = scheduled;
+  document.getElementById('count-calendar').textContent = scheduled;
   document.getElementById('count-published').textContent = published;
   document.getElementById('count-rejected').textContent = rejected;
+
+  if (currentFilter === 'calendar') {
+    renderCalendar();
+    return;
+  }
 
   const filtered = currentFilter === 'all' ? allDrafts.filter(r => getStatus(r.status) === 'pending') : allDrafts.filter(r => getStatus(r.status) === currentFilter);
 
