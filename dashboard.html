@@ -157,13 +157,15 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 .calendar-event:focus { outline: 2px solid #c7a7dc; outline-offset: 2px; }
 .calendar-event-time { display: block; font-size: 10px; font-weight: 700; opacity: 0.9; margin-bottom: 2px; }
 .calendar-event-title { display: block; font-size: 11px; line-height: 1.25; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.calendar-preview { display: none; position: absolute; left: 0; top: calc(100% - 1px); width: min(360px, 80vw); max-height: 320px; overflow-y: auto; padding: 12px; background: #ffffff; color: #1a1a1a; border: 1px solid #d8d8d8; border-radius: 8px; box-shadow: 0 16px 40px rgba(0,0,0,0.18); z-index: 80; cursor: auto; }
+.calendar-preview { display: none; position: absolute; left: 0; top: calc(100% - 1px); width: min(380px, 80vw); max-height: min(520px, 72vh); overflow-y: auto; padding: 12px; background: #ffffff; color: #1a1a1a; border: 1px solid #d8d8d8; border-radius: 8px; box-shadow: 0 16px 40px rgba(0,0,0,0.18); z-index: 80; cursor: auto; }
+.calendar-preview.above { top: auto; bottom: calc(100% - 1px); }
+.calendar-preview.align-right { left: auto; right: 0; }
 .calendar-event:hover .calendar-preview, .calendar-event:focus .calendar-preview { display: block; }
 .calendar-preview-title { display: block; font-size: 13px; line-height: 1.35; font-weight: 700; margin-bottom: 6px; color: #1a1a1a; }
 .calendar-preview-meta { display: block; font-size: 11px; font-weight: 700; color: #553d67; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.4px; }
 .calendar-preview-image { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; border: 1px solid #e0e0e0; margin-bottom: 10px; display: block; }
 .calendar-preview-text { display: block; font-size: 12px; line-height: 1.55; color: #333333; white-space: pre-wrap; }
-.calendar-preview-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eeeeee; }
+.calendar-preview-actions { position: sticky; top: -12px; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 -12px 10px; padding: 10px 12px; background: #ffffff; border-bottom: 1px solid #eeeeee; box-shadow: 0 6px 12px rgba(255,255,255,0.95); }
 .calendar-action { border: 1px solid #d8d8d8; background: #ffffff; color: #553d67; border-radius: 6px; padding: 5px 8px; font-size: 11px; font-weight: 700; font-family: inherit; cursor: pointer; }
 .calendar-action:hover { background: #f8f5fa; border-color: #553d67; }
 .calendar-action.danger { color: #c62828; border-color: #ef9a9a; }
@@ -298,6 +300,30 @@ function sameDay(a, b) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+function positionCalendarPreview(eventEl) {
+  const preview = eventEl.querySelector('.calendar-preview');
+  if (!preview) return;
+  preview.classList.remove('above', 'align-right');
+  preview.style.maxHeight = '';
+
+  const eventRect = eventEl.getBoundingClientRect();
+  const preferredHeight = Math.min(520, Math.round(window.innerHeight * 0.72));
+  const spaceAbove = eventRect.top;
+  const spaceBelow = window.innerHeight - eventRect.bottom;
+  const spaceRight = window.innerWidth - eventRect.left;
+  const openAbove = spaceBelow < preferredHeight + 16 && spaceAbove > spaceBelow;
+  const availableSpace = openAbove ? spaceAbove : spaceBelow;
+  const cappedHeight = Math.max(220, Math.min(preferredHeight, availableSpace - 16));
+
+  if (openAbove) {
+    preview.classList.add('above');
+  }
+  if (spaceRight < 400 && eventRect.right > 380) {
+    preview.classList.add('align-right');
+  }
+  preview.style.maxHeight = `${cappedHeight}px`;
+}
+
 function monthLabel(d) {
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
@@ -371,14 +397,12 @@ function renderCalendar() {
           const bucket = escapeHtml(row.bucket || 'N/A');
           const image = row.image_url ? `<img class="calendar-preview-image" src="${escapeAttr(row.image_url)}" alt="">` : '';
           return `
-            <div class="calendar-event" tabindex="0" aria-label="${attrTopic}">
+            <div class="calendar-event" tabindex="0" aria-label="${attrTopic}" onmouseenter="positionCalendarPreview(this)" onfocus="positionCalendarPreview(this)">
               <span class="calendar-event-time">${formatScheduledTime(scheduled)}</span>
               <span class="calendar-event-title">${topic}</span>
               <span class="calendar-preview">
                 <span class="calendar-preview-title">${topic}</span>
                 <span class="calendar-preview-meta">${bucket} | ${scheduled.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' })} at ${formatScheduledTime(scheduled)}</span>
-                ${image}
-                <span class="calendar-preview-text">${preview}</span>
                 <span class="calendar-preview-actions">
                   <button class="calendar-action" type="button" onclick="event.stopPropagation(); openEditModal(${row.id})">Edit</button>
                   <button class="calendar-action" type="button" onclick="event.stopPropagation(); openRewriteModal(${row.id})">Rewrite</button>
@@ -386,6 +410,8 @@ function renderCalendar() {
                   <button class="calendar-action" type="button" onclick="event.stopPropagation(); rescheduleNext(${row.id})">Next Slot</button>
                   <button class="calendar-action danger" type="button" onclick="event.stopPropagation(); deleteDraft(${row.id})">Delete</button>
                 </span>
+                ${image}
+                <span class="calendar-preview-text">${preview}</span>
               </span>
             </div>`;
         }).join('')}
