@@ -127,13 +127,13 @@ function draftIssues(text: string) {
   return issues;
 }
 
-function ensureMetadata(text: string, source: string, topic: string) {
+function ensureMetadata(text: string, source: string, imageDescription: string) {
   let clean = text
     .replace(/Source:\s*https?:\/\/\S+/gi, "")
     .replace(/\[IMAGE:[\s\S]*?\]/gi, "")
     .trim();
   clean = clean.replace(/\n{3,}/g, "\n\n");
-  return `${clean}\n\nSource: ${source}\n[IMAGE: A clean modern business workspace showing teams using AI tools and workflow dashboards to solve a practical business problem related to ${topic}]`;
+  return `${clean}\n\nSource: ${source}\n[IMAGE: ${imageDescription}]`;
 }
 
 function normalizePillar(value = "") {
@@ -159,6 +159,18 @@ function chooseTargetPillar(recent: any[]) {
 }
 
 const MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
+
+function safeParseJson(s: string) {
+  let c = s.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  try { return JSON.parse(c); } catch {}
+  const match = c.match(/\{[\s\S]*\}/);
+  if (match) c = match[0];
+  try { return JSON.parse(c); } catch {}
+  c = c.replace(/[\r\n]+/g, ' ').replace(/\t/g, ' ');
+  try { return JSON.parse(c); } catch (e) {
+    throw new Error(`JSON parse failed: ${(e as Error).message}\nRaw: ${s.substring(0, 200)}`);
+  }
+}
 
 async function callGemini(model: string, prompt: string, systemPrompt?: string, jsonMode = false) {
   const models = MODELS;
@@ -198,6 +210,24 @@ async function callGemini(model: string, prompt: string, systemPrompt?: string, 
     }
   }
   throw new Error("All Gemini models unavailable. Wait a minute and try again.");
+}
+
+function createImageDescription(post: string, topic: string, pillar: string) {
+  const cleanLines = post
+    .replace(/\[IMAGE:[\s\S]*?\]/gi, "")
+    .replace(/Source:\s*https?:\/\/\S+/gi, "")
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith("#"));
+  const hook = cleanLines[0] || topic;
+  const detail = cleanLines.find(line => /\d|AI|sales|lead|customer|website|content|workflow|automation|traffic|conversion/i.test(line)) || cleanLines[1] || topic;
+  const pillarContext: Record<string, string> = {
+    AI: "AI workflow automation, business operations, sales or customer-service handoffs, and human review checkpoints",
+    MARKETING: "search visibility, content strategy, customer research, analytics, and demand generation",
+    CRO: "website conversion paths, landing-page decisions, user behavior, and lead capture",
+    CONTRACTOR: "business growth work for construction or home-service teams, without relying on jobsite cliches",
+  };
+  return `A polished editorial image visualizing this post's core idea: ${hook} ${detail} Show ${pillarContext[pillar] || "business strategy, practical workflows, and decision-making"} with concrete people, tools, and objects. No readable text, logos, screenshots, or labeled charts.`;
 }
 
 serve(async (req) => {
@@ -248,17 +278,6 @@ Return ONLY this JSON, keep values concise: {"pick":1,"bucket":"${targetPillar}"
 ${headlineList}`;
 
     const intelligenceRaw = await callGemini("gemini-2.5-flash", intelligencePrompt, undefined, true);
-    const safeParseJson = (s: string) => {
-      let c = s.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      try { return JSON.parse(c); } catch {}
-      const match = c.match(/\{[\s\S]*\}/);
-      if (match) c = match[0];
-      try { return JSON.parse(c); } catch {}
-      c = c.replace(/[\r\n]+/g, ' ').replace(/\t/g, ' ');
-      try { return JSON.parse(c); } catch (e) {
-        throw new Error(`JSON parse failed: ${(e as Error).message}\nRaw: ${s.substring(0, 200)}`);
-      }
-    };
     const intelligence = safeParseJson(intelligenceRaw);
     const pickIndex = (intelligence.pick || 1) - 1;
     const pickedRSS = rssToUse[Math.min(pickIndex, rssToUse.length - 1)];
@@ -298,12 +317,11 @@ Source: ${item.source}
 
     let draft = "";
     let issues: string[] = [];
+    let imageDescription = "";
     for (let attempt = 0; attempt < 4; attempt++) {
-      draft = ensureMetadata(
-        await callGemini("gemini-2.5-flash", draftPrompt, SYSTEM_PROMPT + learnedStyle),
-        item.source,
-        item.topic
-      );
+      const draftBody = await callGemini("gemini-2.5-flash", draftPrompt, SYSTEM_PROMPT + learnedStyle);
+      imageDescription = createImageDescription(draftBody, item.topic, item.bucket);
+      draft = ensureMetadata(draftBody, item.source, imageDescription);
       issues = draftIssues(draft);
       if (!issues.length) break;
       draftPrompt = `The previous draft failed these checks: ${issues.join(", ")}.
@@ -331,7 +349,7 @@ ${draft}`;
     const qcRaw = await callGemini("gemini-2.5-flash", qcPrompt, undefined, true);
     const qc = safeParseJson(qcRaw);
 
-    // 5. Generate image from [IMAGE: ...] description
+    // 5. Generate image from the post-specific [IMAGE: ...] description
     let imageUrl = "";
     const imageMatch = draft.match(/\[IMAGE:\s*(.+?)\]/i);
     if (imageMatch) {
@@ -341,7 +359,7 @@ ${draft}`;
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            instances: [{ prompt: `Professional LinkedIn post image: ${imagePrompt}. Clean, modern, business-appropriate, high quality photography style.` }],
+            instances: [{ prompt: `Professional LinkedIn post image: ${imagePrompt}. Clean, modern, business-appropriate, high quality editorial illustration or photography style. No readable text, labels, screenshots, or logos.` }],
             parameters: { sampleCount: 1, aspectRatio: "16:9" }
           }),
         });
