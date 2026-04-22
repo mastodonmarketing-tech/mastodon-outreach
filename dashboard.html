@@ -175,9 +175,10 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 
 <script>
 const SUPABASE_URL = 'https://vaaudpclqxaqzlryhhlm.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZhYXVkcGNscXhhcXpscnloaGxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMzc3NDEsImV4cCI6MjA5MTcxMzc0MX0.R7iLNsyHAc-Ky_ri1tP5DovcECYu_jTqpi1-3GjobJg';
+const SUPABASE_KEY = 'sb_publishable_SHsVFBB_I639cZwJSM2NEQ_1RsFon5a';
 
 const hdrs = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+const fnHdrs = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
 let allDrafts = [];
 let currentFilter = 'all';
 
@@ -237,7 +238,10 @@ async function loadDrafts() {
   main.innerHTML = '<div class="loading-state"><div class="spinner"></div><br>Loading drafts...</div>';
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/linkedin_drafts?order=created_at.desc`, { headers: hdrs });
-    allDrafts = await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || data.error || 'Could not load drafts');
+    if (!Array.isArray(data)) throw new Error('Draft response was not a list');
+    allDrafts = data;
     renderDrafts();
   } catch (err) {
     main.innerHTML = `<div class="empty"><div class="empty-icon">!</div><h2>Could not load drafts</h2><p>${err.message}</p></div>`;
@@ -373,7 +377,7 @@ async function handleApprove(id) {
   disableCard(id);
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/approve`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      method: 'POST', headers: fnHdrs,
       body: JSON.stringify({ draft_id: id })
     });
     const data = await res.json();
@@ -388,7 +392,7 @@ async function publishNow(id) {
   disableCard(id);
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/approve`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      method: 'POST', headers: fnHdrs,
       body: JSON.stringify({ draft_id: id, publish_now: true })
     });
     const data = await res.json();
@@ -404,7 +408,7 @@ async function reschedule(id) {
   disableCard(id);
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/approve`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      method: 'POST', headers: fnHdrs,
       body: JSON.stringify({ draft_id: id, scheduled_for: new Date(input.value).toISOString() })
     });
     const data = await res.json();
@@ -441,7 +445,7 @@ async function handleRewrite(id) {
   disableCard(id);
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/rewrite`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
+      method: 'POST', headers: fnHdrs,
       body: JSON.stringify({ draft_id: id, notes })
     });
     const data = await res.json();
@@ -457,7 +461,7 @@ async function generateDraft() {
   btn.innerHTML = '<div class="spinner"></div> Generating...';
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-draft`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+      method: 'POST', headers: fnHdrs
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Failed');
@@ -479,7 +483,7 @@ async function generateBatch() {
     if (i > 0) await wait(5000);
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-draft`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}`, 'apikey': SUPABASE_KEY }
+        method: 'POST', headers: fnHdrs
       });
       const data = await res.json();
       if (!data.ok) { showToast(`Draft ${i+1} failed: ${data.error}`, 'error'); continue; }
