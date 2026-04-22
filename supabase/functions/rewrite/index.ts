@@ -6,6 +6,16 @@ const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 const MIN_POST_WORDS = 180;
 const MAX_POST_WORDS = 340;
+const BANNED_PHRASES = [
+  "identify one repetitive task that takes up too much time each week",
+  "one repetitive task that takes up too much time each week",
+  "where do people spend too much time on routine work",
+];
+const BANNED_PATTERNS = [
+  { label: "generic one-workflow time-drain CTA", pattern: /\bone workflow\b[\s\S]{0,120}\btime drain\b/i },
+  { label: "generic one-task time-drain CTA", pattern: /\bone task\b[\s\S]{0,120}\btime drain\b/i },
+  { label: "generic too-much-time-each-week CTA", pattern: /\btoo much time\b[\s\S]{0,80}\beach week\b/i },
+];
 
 const SYSTEM_PROMPT = `You are Alex's LinkedIn content strategist for Mastodon Marketing.
 
@@ -33,6 +43,7 @@ MARKETING PSYCHOLOGY:
 - SOCIAL PROOF: Reference real results with specific numbers when useful. Rotate examples across businesses: agencies, clinics, retailers, B2B teams, franchises, software companies, home service companies, and contractors. Only mention client names occasionally, maybe 1 in 5 posts.
 - RECIPROCITY: Give value first.
 - CTA: Clear call to action tied to Mastodon Marketing services.
+- CTA VARIETY: Do not end posts with the same homework-style prompt. Never write 'Identify one repetitive task that takes up too much time each week' or any close variation like 'one workflow that feels like a time drain.' Rotate endings across audit offers, strategic questions, observation-based takeaways, diagnostic prompts, and soft invitations to talk through an implementation plan.
 
 CONTENT RULES:
 - Max 2 hashtags at the end.
@@ -78,9 +89,16 @@ function lastContentLine(text: string) {
 function draftIssues(text: string) {
   const issues: string[] = [];
   const words = countWords(text);
+  const lower = text.toLowerCase();
   if (words < MIN_POST_WORDS) issues.push(`too short at ${words} words`);
   if (words > MAX_POST_WORDS) issues.push(`too long at ${words} words`);
   if (!/\[IMAGE:\s*.+?\]/i.test(text)) issues.push("missing [IMAGE] description");
+  for (const phrase of BANNED_PHRASES) {
+    if (lower.includes(phrase)) issues.push(`uses repetitive banned phrase: ${phrase}`);
+  }
+  for (const item of BANNED_PATTERNS) {
+    if (item.pattern.test(text)) issues.push(`uses repetitive banned pattern: ${item.label}`);
+  }
   const lastLine = lastContentLine(text);
   if (lastLine && !/[.!?]$/.test(lastLine)) issues.push("appears cut off before the metadata");
   return issues;
@@ -224,7 +242,8 @@ REWRITE INSTRUCTIONS FROM ALEX:
 ${notes}
 
 Revise the post according to these instructions. Keep the same topic and source. Follow all voice, format, and psychology rules.
-If the topic is about AI implementation, make the advice useful for all businesses, not just contractors or local service businesses.`;
+If the topic is about AI implementation, make the advice useful for all businesses, not just contractors or local service businesses.
+Do not use the repetitive ending 'Identify one repetitive task that takes up too much time each week.' Choose a more specific ending tied to this topic instead.`;
 
     const body = {
       system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
@@ -281,6 +300,7 @@ Target 240-300 words before metadata.
 Use 7-9 short paragraphs.
 Each paragraph must add a new useful idea, example, or implementation step.
 Do not stop mid-thought.
+Do not use the repetitive ending 'Identify one repetitive task that takes up too much time each week.' Use a fresh topic-specific CTA or takeaway.
 
 Previous rewrite:
 ${newDraft}`;
