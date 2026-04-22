@@ -425,10 +425,12 @@ async function reschedule(id) {
 async function unschedule(id) {
   disableCard(id);
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/linkedin_drafts?id=eq.${id}`, {
-      method: 'PATCH', headers: hdrs,
-      body: JSON.stringify({ status: 'Pending Review', scheduled_for: null })
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/approve`, {
+      method: 'POST', headers: fnHdrs,
+      body: JSON.stringify({ draft_id: id, action: 'unschedule' })
     });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Failed');
     showToast('Unscheduled - moved back to Pending', 'success');
     setTimeout(loadDrafts, 500);
   } catch (err) { showToast('Error: ' + err.message, 'error'); loadDrafts(); }
@@ -437,7 +439,12 @@ async function unschedule(id) {
 async function handleReject(id) {
   disableCard(id);
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/linkedin_drafts?id=eq.${id}`, { method: 'PATCH', headers: hdrs, body: JSON.stringify({ status: 'Rejected' }) });
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/approve`, {
+      method: 'POST', headers: fnHdrs,
+      body: JSON.stringify({ draft_id: id, action: 'reject' })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Failed');
     showToast('Draft rejected', 'success');
     setTimeout(loadDrafts, 400);
   } catch (err) { showToast('Error: ' + err.message, 'error'); loadDrafts(); }

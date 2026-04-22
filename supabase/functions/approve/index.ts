@@ -48,13 +48,37 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { draft_id, publish_now, scheduled_for } = await req.json();
+    const { draft_id, publish_now, scheduled_for, action } = await req.json();
     if (!draft_id) throw new Error("draft_id required");
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    if (action === "reject") {
+      const { error } = await supabase.from("linkedin_drafts").update({
+        status: "Rejected",
+        scheduled_for: null,
+      }).eq("id", draft_id);
+      if (error) throw new Error(`Reject failed: ${error.message}`);
+
+      return new Response(JSON.stringify({ ok: true, status: "Rejected" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "unschedule") {
+      const { error } = await supabase.from("linkedin_drafts").update({
+        status: "Pending Review",
+        scheduled_for: null,
+      }).eq("id", draft_id);
+      if (error) throw new Error(`Unschedule failed: ${error.message}`);
+
+      return new Response(JSON.stringify({ ok: true, status: "Pending Review" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // If publish_now, publish immediately (bypass scheduling)
     if (publish_now) {
@@ -73,12 +97,13 @@ serve(async (req) => {
       });
       if (!webhookRes.ok) throw new Error(`LinkedIn publish failed: ${webhookRes.status}`);
 
-      await supabase.from("linkedin_drafts").update({
+      const { error: updateErr } = await supabase.from("linkedin_drafts").update({
         status: "Published",
         linkedin_post_id: "via-webhook",
         scheduled_date: new Date().toISOString(),
         scheduled_for: null,
       }).eq("id", draft_id);
+      if (updateErr) throw new Error(`Update failed: ${updateErr.message}`);
 
       return new Response(JSON.stringify({ ok: true, published: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -87,10 +112,11 @@ serve(async (req) => {
 
     // If custom scheduled_for provided, use it
     if (scheduled_for) {
-      await supabase.from("linkedin_drafts").update({
+      const { error } = await supabase.from("linkedin_drafts").update({
         status: "Scheduled",
         scheduled_for: scheduled_for,
       }).eq("id", draft_id);
+      if (error) throw new Error(`Schedule failed: ${error.message}`);
 
       return new Response(JSON.stringify({ ok: true, scheduled_for }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -107,10 +133,11 @@ serve(async (req) => {
     const existingDates = (scheduled || []).map((r: any) => r.scheduled_for).filter(Boolean);
     const nextSlot = getNextSlot(existingDates);
 
-    await supabase.from("linkedin_drafts").update({
+    const { error: scheduleErr } = await supabase.from("linkedin_drafts").update({
       status: "Scheduled",
       scheduled_for: nextSlot.toISOString(),
     }).eq("id", draft_id);
+    if (scheduleErr) throw new Error(`Schedule failed: ${scheduleErr.message}`);
 
     return new Response(JSON.stringify({ ok: true, scheduled_for: nextSlot.toISOString() }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
