@@ -1,0 +1,10 @@
+project_id = "vaaudpclqxaqzlryhhlm"
+
+[functions.approve]
+verify_jwt = false
+
+[functions.generate-draft]
+verify_jwt = false
+
+[functions.rewrite]
+verify_jwt = false

@@ -4,34 +4,41 @@ import { decode as base64Decode } from "https://deno.land/std@0.168.0/encoding/b
 
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+const MIN_POST_WORDS = 180;
+const MAX_POST_WORDS = 340;
 
 const RSS_FEEDS = [
-  // AI implementation for businesses
-  "https://news.google.com/rss/search?q=AI+implementation+small+business+automation&hl=en-US",
-  "https://news.google.com/rss/search?q=artificial+intelligence+business+operations+ROI&hl=en-US",
+  // AI implementation for all businesses
+  { pillar: "AI", url: "https://news.google.com/rss/search?q=AI+implementation+business+automation+operations&hl=en-US" },
+  { pillar: "AI", url: "https://news.google.com/rss/search?q=artificial+intelligence+business+operations+ROI&hl=en-US" },
+  { pillar: "AI", url: "https://news.google.com/rss/search?q=AI+workflow+automation+small+business&hl=en-US" },
+  { pillar: "AI", url: "https://news.google.com/rss/search?q=AI+tools+sales+customer+service+business&hl=en-US" },
+  { pillar: "AI", url: "https://news.google.com/rss/search?q=AI+implementation+marketing+teams+business&hl=en-US" },
   // Digital marketing
-  "https://news.google.com/rss/search?q=digital+marketing+trends+local+business&hl=en-US",
-  "https://news.google.com/rss/search?q=Google+Ads+local+SEO+algorithm+update&hl=en-US",
+  { pillar: "MARKETING", url: "https://news.google.com/rss/search?q=digital+marketing+trends+business+growth&hl=en-US" },
+  { pillar: "MARKETING", url: "https://news.google.com/rss/search?q=Google+Ads+SEO+algorithm+update+business&hl=en-US" },
   // Website design + CRO
-  "https://news.google.com/rss/search?q=website+conversion+rate+optimization+design&hl=en-US",
-  "https://news.google.com/rss/search?q=landing+page+optimization+lead+generation&hl=en-US",
-  // Construction/contractor specific
-  "https://news.google.com/rss/search?q=contractor+marketing+construction+industry&hl=en-US",
+  { pillar: "CRO", url: "https://news.google.com/rss/search?q=website+conversion+rate+optimization+design&hl=en-US" },
+  { pillar: "CRO", url: "https://news.google.com/rss/search?q=landing+page+optimization+lead+generation&hl=en-US" },
+  // Contractor/local service work stays in the mix, but no longer dominates it
+  { pillar: "CONTRACTOR", url: "https://news.google.com/rss/search?q=contractor+marketing+construction+industry&hl=en-US" },
 ];
 
-const SYSTEM_PROMPT = `You are Alex's LinkedIn content strategist for Mastodon Marketing, a Houston-based digital marketing agency specializing in construction, real estate, and local service businesses.
+const SYSTEM_PROMPT = `You are Alex's LinkedIn content strategist for Mastodon Marketing.
+
+Mastodon Marketing has deep experience with construction, real estate, and local service businesses, but Alex's LinkedIn should not only speak to those audiences. Write for business owners, operators, marketing leaders, sales teams, and service teams across industries when the topic is broadly useful.
 
 IDENTITY: You write as Alex, VP of Marketing & Sales at Mastodon Marketing. First person.
 
-TOPIC MIX: Rotate between these three pillars. Do NOT write about the same pillar twice in a row.
-1. AI IMPLEMENTATION: How businesses (especially contractors, service companies) can use AI to save time, automate operations, and grow. Practical use cases, not hype.
-2. DIGITAL MARKETING: SEO, Google Ads, social media, content strategy. Tactical advice for local businesses. What is working right now.
-3. WEBSITE DESIGN + CRO: Conversion rate optimization, landing pages, lead generation, UX for service businesses. Specific tweaks that increase leads.
+TOPIC MIX:
+1. AI IMPLEMENTATION: This is the priority pillar. Write about how any business can use AI to save time, improve operations, speed up sales/admin work, improve customer service, build internal workflows, and make better decisions. Practical implementation beats AI news or hype.
+2. DIGITAL MARKETING: SEO, Google Ads, social media, content strategy, and demand generation for growing businesses. Do not default to local contractors unless the source is contractor-specific.
+3. WEBSITE DESIGN + CRO: Conversion rate optimization, landing pages, lead generation, and UX for any business that needs better conversion.
 
 WRITING STYLE:
 - 9th-grade reading level. Short sentences. Simple words.
 - Group 2-3 related sentences into short paragraphs. Put a blank line between each paragraph.
-- Keep the total post between 150-200 words. Do not exceed 200 words.
+- Target 220-280 words. Never save a post under 180 words.
 - Practical and actionable. Give the reader something they can DO today.
 - No em dashes. No corporate speak. No passive voice.
 - Conversational and direct.
@@ -40,7 +47,7 @@ WRITING STYLE:
 MARKETING PSYCHOLOGY:
 - HOOK: Pattern interrupt, curiosity gap, or surprising stat in first 2 lines.
 - RETENTION: Open loops, storytelling, concrete numbers.
-- SOCIAL PROOF: Reference real results with specific numbers. Only mention client names like RJT Construction or 911 Restoration of Tampa occasionally, maybe 1 in every 5 posts. Most posts should use anonymous examples like 'one roofing company' or 'a GC we work with'.
+- SOCIAL PROOF: Reference real results with specific numbers when useful. Rotate examples across businesses: agencies, clinics, retailers, B2B teams, franchises, software companies, home service companies, and contractors. Only mention client names like RJT Construction or 911 Restoration of Tampa occasionally, maybe 1 in every 5 posts.
 - RECIPROCITY: Give value first.
 - CTA: Clear call to action tied to Mastodon Marketing services.
 
@@ -49,10 +56,11 @@ CONTENT RULES:
 - AVOID bullet points and lists. Write in flowing sentences, one per line. If you must use a list, use simple numbered steps (1. 2. 3.) with no bold text inside them.
 - NEVER use bold (**text**) or italic (*text*) formatting inside the post.
 - NEVER use markdown formatting of any kind. Plain text only.
-- Include source URL at end if referencing an article.
-- Include [IMAGE: description] at the end.
+- End with this exact metadata order:
+Source: source URL
+[IMAGE: detailed image description]
 
-LENGTH: Every post MUST be at least 150 words and ideally 200-250 words. A short post is a bad post. Include enough detail, examples, and actionable steps to fill a full LinkedIn post. Do not stop early.
+LENGTH: Every post MUST be complete, specific, and at least 180 words before the Source and [IMAGE] lines. A short post is a bad post. Include a concrete example, a practical implementation step, and a clear takeaway. Do not stop mid-thought.
 
 OUTPUT: Return post text only. No preamble. No markdown. Plain text only.`;
 
@@ -61,18 +69,20 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface RSSItem { title: string; url: string; }
+interface RSSFeed { pillar: string; url: string; }
+interface RSSItem { title: string; url: string; pillar: string; }
 
-async function fetchRSS(url: string): Promise<RSSItem[]> {
+async function fetchRSS(feed: RSSFeed): Promise<RSSItem[]> {
   try {
-    const res = await fetch(url);
+    const res = await fetch(feed.url);
     const xml = await res.text();
     const items: RSSItem[] = [];
     const matches = xml.matchAll(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?<\/item>/g);
     for (const m of matches) {
       items.push({
         title: m[1].replace(/<!\[CDATA\[|\]\]>/g, "").trim(),
-        url: m[2].replace(/<!\[CDATA\[|\]\]>/g, "").trim()
+        url: m[2].replace(/<!\[CDATA\[|\]\]>/g, "").trim(),
+        pillar: feed.pillar
       });
       if (items.length >= 5) break;
     }
@@ -80,6 +90,72 @@ async function fetchRSS(url: string): Promise<RSSItem[]> {
   } catch {
     return [];
   }
+}
+
+function countWords(text: string) {
+  return text
+    .replace(/\[IMAGE:[\s\S]*?\]/gi, "")
+    .replace(/https?:\/\/\S+/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+function lastContentLine(text: string) {
+  const lines = text
+    .replace(/\[IMAGE:[\s\S]*?\]/gi, "")
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line =>
+      line &&
+      !line.toLowerCase().startsWith("source:") &&
+      !/^https?:\/\//.test(line) &&
+      !line.startsWith("#")
+    );
+  return lines[lines.length - 1] || "";
+}
+
+function draftIssues(text: string) {
+  const issues: string[] = [];
+  const words = countWords(text);
+  if (words < MIN_POST_WORDS) issues.push(`too short at ${words} words`);
+  if (words > MAX_POST_WORDS) issues.push(`too long at ${words} words`);
+  if (!/\[IMAGE:\s*.+?\]/i.test(text)) issues.push("missing [IMAGE] description");
+  if (!/Source:\s*https?:\/\/\S+/i.test(text)) issues.push("missing Source line");
+  const lastLine = lastContentLine(text);
+  if (lastLine && !/[.!?]$/.test(lastLine)) issues.push("appears cut off before the metadata");
+  return issues;
+}
+
+function ensureMetadata(text: string, source: string, topic: string) {
+  let clean = text
+    .replace(/Source:\s*https?:\/\/\S+/gi, "")
+    .replace(/\[IMAGE:[\s\S]*?\]/gi, "")
+    .trim();
+  clean = clean.replace(/\n{3,}/g, "\n\n");
+  return `${clean}\n\nSource: ${source}\n[IMAGE: A clean modern business workspace showing teams using AI tools and workflow dashboards to solve a practical business problem related to ${topic}]`;
+}
+
+function normalizePillar(value = "") {
+  const v = value.toLowerCase();
+  if (v.includes("ai") || v.includes("automation") || v.includes("artificial intelligence")) return "AI";
+  if (v.includes("cro") || v.includes("website") || v.includes("landing") || v.includes("conversion")) return "CRO";
+  if (v.includes("marketing") || v.includes("seo") || v.includes("google ads")) return "MARKETING";
+  if (v.includes("contractor") || v.includes("construction")) return "CONTRACTOR";
+  return "MARKETING";
+}
+
+function chooseTargetPillar(recent: any[]) {
+  const recentPillars = recent.map((r: any) => normalizePillar(`${r.bucket || ""} ${r.topic || ""}`));
+  const lastSix = recentPillars.slice(0, 6);
+  const aiCount = lastSix.filter(p => p === "AI").length;
+  if (lastSix.length < 6 || aiCount < 4) return "AI";
+  if (lastSix[0] === "AI" && lastSix[1] === "AI") {
+    const croCount = lastSix.filter(p => p === "CRO").length;
+    const marketingCount = lastSix.filter(p => p === "MARKETING").length;
+    return croCount <= marketingCount ? "CRO" : "MARKETING";
+  }
+  return "AI";
 }
 
 const MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite"];
@@ -130,8 +206,8 @@ serve(async (req) => {
   try {
     // 1. Fetch RSS
     const allRSS: RSSItem[] = [];
-    for (const url of RSS_FEEDS) {
-      const items = await fetchRSS(url);
+    for (const feed of RSS_FEEDS) {
+      const items = await fetchRSS(feed);
       allRSS.push(...items);
     }
     if (allRSS.length === 0) throw new Error("No RSS items found");
@@ -143,23 +219,31 @@ serve(async (req) => {
     );
     const { data: existing } = await supabaseForQuery
       .from("linkedin_drafts")
-      .select("topic")
+      .select("topic,bucket,draft")
       .order("created_at", { ascending: false })
       .limit(20);
     const usedTopics = (existing || []).map((r: any) => r.topic?.toLowerCase()).filter(Boolean);
+    const targetPillar = chooseTargetPillar(existing || []);
 
     // Filter out headlines similar to existing topics
     const freshRSS = allRSS.filter(item =>
       !usedTopics.some(t => item.title.toLowerCase().includes(t.substring(0, 20)) || t.includes(item.title.toLowerCase().substring(0, 20)))
     );
-    const rssToUse = freshRSS.length > 0 ? freshRSS : allRSS;
+    const candidateRSS = freshRSS.length > 0 ? freshRSS : allRSS;
+    const pillarRSS = candidateRSS.filter(item => item.pillar === targetPillar);
+    const rssToUse = pillarRSS.length > 0 ? pillarRSS : candidateRSS;
 
     // Build numbered list of headlines only (no URLs - they break JSON)
-    const headlineList = rssToUse.map((item, i) => `${i + 1}. ${item.title}`).join("\n");
+    const headlineList = rssToUse.map((item, i) => `${i + 1}. [${item.pillar}] ${item.title}`).join("\n");
 
     // 2. Intelligence - pick topic by number
-    const intelligencePrompt = `Pick the best headline number for a contractor marketing LinkedIn post. Pick something DIFFERENT each time.
-Return ONLY this JSON, keep ALL values under 10 words: {"pick":1,"topic":"short","bucket":"GROWTH","urgency":5,"angle":"short"}
+    const intelligencePrompt = `Pick the best headline number for a Mastodon Marketing LinkedIn post.
+Target pillar: ${targetPillar}
+Prioritize practical AI implementation for all businesses when the target pillar is AI.
+Do not default to contractors or local service businesses unless the headline is specifically about them.
+Pick something DIFFERENT from recent drafts.
+
+Return ONLY this JSON, keep values concise: {"pick":1,"bucket":"${targetPillar}","urgency":5,"angle":"short practical angle"}
 
 ${headlineList}`;
 
@@ -178,7 +262,12 @@ ${headlineList}`;
     const intelligence = safeParseJson(intelligenceRaw);
     const pickIndex = (intelligence.pick || 1) - 1;
     const pickedRSS = rssToUse[Math.min(pickIndex, rssToUse.length - 1)];
-    const item = { ...intelligence, source: pickedRSS.url, topic: pickedRSS.title };
+    const item = {
+      ...intelligence,
+      source: pickedRSS.url,
+      topic: pickedRSS.title,
+      bucket: normalizePillar(intelligence.bucket || pickedRSS.pillar || targetPillar),
+    };
 
     // 3. Learn from past rewrites
     const { data: pastRewrites } = await supabaseForQuery
@@ -196,14 +285,43 @@ ${headlineList}`;
     }
 
     // 4. Generate draft
-    const draftPrompt = `CONTENT BUCKET: ${item.bucket}
+    let draftPrompt = `CONTENT PILLAR: ${item.bucket}
 TOPIC: ${item.topic}
 SOURCE URL: ${item.source}
 ANGLE: ${item.angle}
 
-Write a LinkedIn post for Mastodon Marketing following all voice, format, and psychology rules. Include the source URL at the end.`;
+Write a complete LinkedIn post for Mastodon Marketing following all voice, format, and psychology rules.
+If CONTENT PILLAR is AI, make the advice useful for all businesses, not just contractors or local service businesses.
+Use this final order:
+Source: ${item.source}
+[IMAGE: detailed image description]`;
 
-    const draft = await callGemini("gemini-2.5-flash", draftPrompt, SYSTEM_PROMPT + learnedStyle);
+    let draft = "";
+    let issues: string[] = [];
+    for (let attempt = 0; attempt < 4; attempt++) {
+      draft = ensureMetadata(
+        await callGemini("gemini-2.5-flash", draftPrompt, SYSTEM_PROMPT + learnedStyle),
+        item.source,
+        item.topic
+      );
+      issues = draftIssues(draft);
+      if (!issues.length) break;
+      draftPrompt = `The previous draft failed these checks: ${issues.join(", ")}.
+
+Rewrite it as a complete LinkedIn post.
+Keep the same topic, source, and angle.
+Target 240-300 words before the metadata.
+Use 7-9 short paragraphs.
+Each paragraph must add a new useful idea, example, or implementation step.
+Do not stop mid-thought.
+Use this final order:
+Source: ${item.source}
+[IMAGE: detailed image description]
+
+Previous draft:
+${draft}`;
+    }
+    if (issues.length) throw new Error(`Generated draft failed quality checks: ${issues.join(", ")}`);
 
     // 4. QC score
     const qcPrompt = `Rate this post 1-10. Return ONLY: {"weighted_average":7,"verdict":"PASS","feedback":"max 15 words"}
@@ -257,7 +375,6 @@ ${draft}`;
       }
     } else {
       console.log("No [IMAGE: ...] found in draft");
-    }
     }
 
     // 6. Insert into Supabase
