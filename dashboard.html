@@ -98,6 +98,9 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 .qc-section { margin: 12px 20px 16px; padding: 12px 14px; background: #fafafa; border: 1px solid #e8e8e8; border-radius: 8px; }
 .qc-header { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #553d67; margin-bottom: 6px; }
 .qc-text { font-size: 13px; color: #333333; line-height: 1.5; }
+.first-comment { margin: 12px 20px 16px; padding: 12px 14px; background: #f8f5fa; border: 1px solid rgba(85,61,103,0.18); border-radius: 8px; }
+.first-comment-header { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #553d67; margin-bottom: 6px; }
+.first-comment-text { font-size: 13px; color: #333333; line-height: 1.5; white-space: pre-wrap; }
 
 /* Actions */
 .card-actions { padding: 14px 20px; border-top: 1px solid #e8e8e8; display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
@@ -172,6 +175,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 .calendar-action.danger { color: #c62828; border-color: #ef9a9a; }
 .calendar-action.danger:hover { background: #ffebee; }
 .modal-textarea { width: 100%; min-height: 260px; padding: 12px; background: #fafafa; border: 1px solid #d0d0d0; border-radius: 8px; color: #1a1a1a; font-size: 13px; font-family: inherit; resize: vertical; line-height: 1.5; margin: 12px 0; }
+.modal-textarea.comment { min-height: 90px; }
 .modal-textarea:focus { outline: none; border-color: #553d67; box-shadow: 0 0 0 3px rgba(85,61,103,0.15); }
 .modal-image { width: 100%; border-radius: 8px; border: 1px solid #e0e0e0; margin-top: 12px; display: block; }
 
@@ -414,6 +418,7 @@ function renderCalendar() {
           const bucket = escapeHtml(row.bucket || 'N/A');
           const statusLabel = isPublished ? 'Posted' : 'Scheduled';
           const image = row.image_url ? `<img class="calendar-preview-image" src="${escapeAttr(row.image_url)}" alt="">` : '';
+          const firstComment = row.first_comment ? `<span class="first-comment" style="display:block;margin:10px 0 0"><span class="first-comment-header">First Comment</span><span class="first-comment-text">${escapeHtml(row.first_comment)}</span></span>` : '';
           const actions = isPublished ? '' : `
                 <span class="calendar-preview-actions">
                   <button class="calendar-action" type="button" onclick="event.stopPropagation(); openEditModal(${row.id})">Edit</button>
@@ -432,6 +437,7 @@ function renderCalendar() {
                 ${actions}
                 ${image}
                 <span class="calendar-preview-text">${preview}</span>
+                ${firstComment}
               </span>
             </div>`;
         }).join('')}
@@ -532,6 +538,7 @@ function renderDrafts() {
 
       ${row.image_url ? `<div style="padding:0 20px;margin-top:12px"><img src="${escapeHtml(row.image_url)}" style="width:100%;border-radius:10px;border:1px solid #e0e0e0" alt="Post image"></div>` : ''}
       ${imageSuggestion && !row.image_url ? `<div class="image-suggestion">${escapeHtml(imageSuggestion)}</div>` : ''}
+      ${row.first_comment ? `<div class="first-comment"><div class="first-comment-header">First Comment</div><div class="first-comment-text">${escapeHtml(row.first_comment)}</div></div>` : ''}
 
       ${row.source_url ? `<div class="source"><a href="${escapeHtml(row.source_url)}" target="_blank">&#x2197; Source article</a></div>` : ''}
 
@@ -591,7 +598,9 @@ function openEditModal(id) {
   if (!row) return;
   const body = `
     ${row.image_url ? `<img class="modal-image" src="${escapeAttr(row.image_url)}" alt="">` : ''}
-    <textarea class="modal-textarea" id="edit-draft-${id}">${escapeHtml(cleanDraftText(row.draft))}</textarea>`;
+    <textarea class="modal-textarea" id="edit-draft-${id}">${escapeHtml(cleanDraftText(row.draft))}</textarea>
+    <div class="first-comment-header">First Comment</div>
+    <textarea class="modal-textarea comment" id="edit-comment-${id}">${escapeHtml(row.first_comment || '')}</textarea>`;
   const actions = `
     <button class="btn btn-reject" onclick="this.closest('.confirm-overlay').remove()">Cancel</button>
     <button class="btn btn-approve" onclick="saveEdit(${id}, this)">Save Edit</button>`;
@@ -614,12 +623,13 @@ function openRewriteModal(id) {
 
 async function saveEdit(id, btn) {
   const draft = document.getElementById(`edit-draft-${id}`).value.trim();
+  const firstComment = document.getElementById(`edit-comment-${id}`).value.trim();
   if (!draft) return;
   btn.disabled = true;
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/rewrite`, {
       method: 'POST', headers: fnHdrs,
-      body: JSON.stringify({ draft_id: id, action: 'edit', draft })
+      body: JSON.stringify({ draft_id: id, action: 'edit', draft, first_comment: firstComment })
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Failed');

@@ -149,7 +149,7 @@ serve(async (req) => {
     if (publish_now) {
       const { data: row, error } = await supabase
         .from("linkedin_drafts")
-        .select("draft, image_url")
+        .select("draft, image_url, first_comment")
         .eq("id", draft_id)
         .single();
       if (error || !row) throw new Error(`Draft not found: ${error?.message}`);
@@ -158,7 +158,7 @@ serve(async (req) => {
       const webhookRes = await fetch("https://hook.us2.make.com/zrpbixh6ougugpuusmo4f1y8i45qdyx2", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draft: cleanDraft, image_url: row.image_url || "" }),
+        body: JSON.stringify({ draft: cleanDraft, image_url: row.image_url || "", first_comment: row.first_comment || "" }),
       });
       if (!webhookRes.ok) throw new Error(`LinkedIn publish failed: ${webhookRes.status}`);
 
