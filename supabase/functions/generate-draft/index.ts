@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { decode as base64Decode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
+import { buildSocialGraphicPng } from "../_shared/social-graphic.ts";
 
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -240,12 +240,12 @@ function createImageDescription(post: string, topic: string, pillar: string) {
   const hook = cleanLines[0] || topic;
   const detail = cleanLines.find(line => /\d|AI|sales|lead|customer|website|content|workflow|automation|traffic|conversion/i.test(line)) || cleanLines[1] || topic;
   const pillarContext: Record<string, string> = {
-    AI: "AI workflow automation, business operations, sales or customer-service handoffs, and human review checkpoints",
-    MARKETING: "search visibility, content strategy, customer research, analytics, and demand generation",
-    CRO: "website conversion paths, landing-page decisions, user behavior, and lead capture",
-    CONTRACTOR: "business growth work for construction or home-service teams, without relying on jobsite cliches",
+    AI: "AI workflow automation, business operations, sales or customer-service handoffs, human review checkpoints, dashboard cards, connected nodes, and process arrows",
+    MARKETING: "search visibility, content strategy, customer research, analytics, demand generation, funnel shapes, channel icons, and campaign cards",
+    CRO: "website conversion paths, landing-page decisions, user behavior, lead capture, wireframe blocks, click paths, and conversion funnels",
+    CONTRACTOR: "business growth systems for construction or home-service teams, using clean process diagrams and CRM-style cards without jobsite cliches",
   };
-  return `A polished editorial image visualizing this post's core idea: ${hook} ${detail} Show ${pillarContext[pillar] || "business strategy, practical workflows, and decision-making"} with concrete people, tools, and objects. No readable text, logos, screenshots, or labeled charts.`;
+  return `A designed LinkedIn social media graphic visualizing this post's core idea: ${hook} ${detail} Use a clean 16:9 social-post graphic style with bold composition, simple symbolic shapes, icon-like elements, layered cards, arrows, and visual hierarchy around ${pillarContext[pillar] || "business strategy, practical workflows, and decision-making"}. Make it feel like a polished brand graphic, not an editorial photo or stock image. Text-free design only: no readable words, letters, numbers, labels, logos, screenshots, or charts with labels. Do not render the topic words into the image. Use abstract lines and blocks anywhere text would normally appear.`;
 }
 
 serve(async (req) => {
@@ -369,50 +369,30 @@ ${draft}`;
     const qcRaw = await callGemini("gemini-2.5-flash", qcPrompt, undefined, true);
     const qc = safeParseJson(qcRaw);
 
-    // 5. Generate image from the post-specific [IMAGE: ...] description
+    // 5. Generate a text-free social graphic based on the post
     let imageUrl = "";
-    const imageMatch = draft.match(/\[IMAGE:\s*(.+?)\]/i);
-    if (imageMatch) {
-      try {
-        const imagePrompt = imageMatch[1].trim();
-        const imgRes = await fetch(`${GEMINI_URL}/imagen-4.0-generate-001:predict?key=${GEMINI_KEY}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            instances: [{ prompt: `Professional LinkedIn post image: ${imagePrompt}. Clean, modern, business-appropriate, high quality editorial illustration or photography style. No readable text, labels, screenshots, or logos.` }],
-            parameters: { sampleCount: 1, aspectRatio: "16:9" }
-          }),
-        });
-        const imgData = await imgRes.json();
-        if (imgRes.ok && imgData.predictions?.[0]?.bytesBase64Encoded) {
-          const imageBytes = imgData.predictions[0].bytesBase64Encoded;
-          const fileName = `post-${Date.now()}.png`;
+    try {
+      const fileName = `post-${Date.now()}.png`;
+      const supabaseStorage = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      );
+      const bytes = buildSocialGraphicPng(draft, item.topic, item.bucket);
+      const { error: uploadErr } = await supabaseStorage.storage
+        .from("post-images")
+        .upload(fileName, bytes, { contentType: "image/png", upsert: true });
 
-          const supabaseStorage = createClient(
-            Deno.env.get("SUPABASE_URL")!,
-            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-          );
-
-          // Decode base64 to Uint8Array using Deno standard library
-          const bytes = base64Decode(imageBytes);
-
-          const { error: uploadErr } = await supabaseStorage.storage
-            .from("post-images")
-            .upload(fileName, bytes, { contentType: "image/png", upsert: true });
-
-          if (!uploadErr) {
-            const { data: urlData } = supabaseStorage.storage
-              .from("post-images")
-              .getPublicUrl(fileName);
-            imageUrl = urlData.publicUrl;
-          }
-        }
-      } catch (imgErr) {
-        console.error("Image generation failed:", (imgErr as Error).message);
-        // Continue without image - not a blocker
+      if (!uploadErr) {
+        const { data: urlData } = supabaseStorage.storage
+          .from("post-images")
+          .getPublicUrl(fileName);
+        imageUrl = urlData.publicUrl;
+      } else {
+        console.error("Social graphic upload failed:", uploadErr.message);
       }
-    } else {
-      console.log("No [IMAGE: ...] found in draft");
+    } catch (imgErr) {
+      console.error("Social graphic generation failed:", (imgErr as Error).message);
+      // Continue without image - not a blocker
     }
 
     // 6. Insert into Supabase
