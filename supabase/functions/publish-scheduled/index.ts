@@ -1,5 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  cleanPostText,
+  createOutstandPost,
+  getOutstandPost,
+  isOutstandConfigured,
+} from "../_shared/outstand.ts";
 
 const MAKE_WEBHOOK = "https://hook.us2.make.com/zrpbixh6ougugpuusmo4f1y8i45qdyx2";
 
@@ -21,7 +27,7 @@ serve(async (req) => {
     const now = new Date().toISOString();
     const { data: due, error } = await supabase
       .from("linkedin_drafts")
-      .select("id, draft, image_url, first_comment")
+      .select("id, draft, image_url, first_comment, outstand_post_id")
       .eq("status", "Scheduled")
       .not("scheduled_for", "is", null)
       .lte("scheduled_for", now);
@@ -37,24 +43,69 @@ serve(async (req) => {
 
     for (const post of due) {
       try {
-        const cleanDraft = post.draft.replace(/\[IMAGE:.*?\]\s*/gi, "").trim();
+        let update: Record<string, any> | null = null;
 
-        const webhookRes = await fetch(MAKE_WEBHOOK, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ draft: cleanDraft, image_url: post.image_url || "", first_comment: post.first_comment || "" }),
-        });
+        if (isOutstandConfigured()) {
+          if (post.outstand_post_id) {
+            const outstand = await getOutstandPost(post.outstand_post_id);
+            if (outstand.status === "published") {
+              update = {
+                status: "Published",
+                linkedin_post_id: outstand.platformPostId || outstand.id,
+                scheduled_date: outstand.publishedAt || new Date().toISOString(),
+                outstand_status: outstand.status,
+                outstand_error: null,
+                platform_post_id: outstand.platformPostId || null,
+              };
+            } else if (outstand.status === "failed") {
+              await supabase.from("linkedin_drafts").update({
+                status: "Pending Review",
+                outstand_status: "failed",
+                outstand_error: "Outstand reported a publishing failure",
+              }).eq("id", post.id);
+              continue;
+            } else {
+              continue;
+            }
+          } else {
+            const outstand = await createOutstandPost({
+              post: post.draft,
+              imageUrl: post.image_url || "",
+              firstComment: post.first_comment || "",
+            });
+            update = {
+              status: "Published",
+              linkedin_post_id: outstand.platformPostId || outstand.id,
+              scheduled_date: outstand.publishedAt || new Date().toISOString(),
+              publishing_provider: "outstand",
+              outstand_post_id: outstand.id,
+              outstand_status: outstand.status,
+              outstand_error: null,
+              platform_post_id: outstand.platformPostId || null,
+              submitted_at: new Date().toISOString(),
+            };
+          }
+        } else {
+          const webhookRes = await fetch(MAKE_WEBHOOK, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ draft: cleanPostText(post.draft), image_url: post.image_url || "", first_comment: post.first_comment || "" }),
+          });
 
-        if (!webhookRes.ok) {
-          console.error(`Webhook failed for ${post.id}: ${webhookRes.status}`);
-          continue;
+          if (!webhookRes.ok) {
+            console.error(`Webhook failed for ${post.id}: ${webhookRes.status}`);
+            continue;
+          }
+
+          update = {
+            status: "Published",
+            linkedin_post_id: "via-webhook",
+            scheduled_date: new Date().toISOString(),
+            publishing_provider: "make",
+          };
         }
 
-        await supabase.from("linkedin_drafts").update({
-          status: "Published",
-          linkedin_post_id: "via-webhook",
-          scheduled_date: new Date().toISOString(),
-        }).eq("id", post.id);
+        await supabase.from("linkedin_drafts").update(update).eq("id", post.id);
 
         published++;
       } catch (e) {

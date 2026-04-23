@@ -1,5 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  cancelOutstandPost,
+  cleanPostText,
+  createOutstandPost,
+  isOutstandConfigured,
+} from "../_shared/outstand.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,6 +76,67 @@ function getNextQueueSlot(existingDates: string[]): Date {
   return fb;
 }
 
+async function cancelOutstandForDraft(supabase: any, draftId: number) {
+  if (!isOutstandConfigured()) return;
+
+  const { data } = await supabase
+    .from("linkedin_drafts")
+    .select("outstand_post_id")
+    .eq("id", draftId)
+    .single();
+
+  if (data?.outstand_post_id) {
+    try {
+      await cancelOutstandPost(data.outstand_post_id);
+    } catch (err) {
+      console.error(`Outstand cancel failed for ${draftId}: ${(err as Error).message}`);
+    }
+  }
+}
+
+async function scheduleDraft(supabase: any, draftId: number, scheduledFor: string) {
+  const { data: row, error } = await supabase
+    .from("linkedin_drafts")
+    .select("draft, image_url, first_comment, outstand_post_id")
+    .eq("id", draftId)
+    .single();
+  if (error || !row) throw new Error(`Draft not found: ${error?.message}`);
+
+  if (row.outstand_post_id && isOutstandConfigured()) {
+    try {
+      await cancelOutstandPost(row.outstand_post_id);
+    } catch (err) {
+      console.error(`Outstand cancel failed for ${draftId}: ${(err as Error).message}`);
+    }
+  }
+
+  let outstand: Awaited<ReturnType<typeof createOutstandPost>> | null = null;
+  if (isOutstandConfigured()) {
+    outstand = await createOutstandPost({
+      post: row.draft,
+      imageUrl: row.image_url || "",
+      firstComment: row.first_comment || "",
+      scheduledAt: scheduledFor,
+    });
+  }
+
+  const update: Record<string, any> = {
+    status: "Scheduled",
+    scheduled_for: scheduledFor,
+    publishing_provider: outstand ? "outstand" : "local",
+    outstand_post_id: outstand?.id || null,
+    outstand_status: outstand?.status || null,
+    outstand_error: null,
+    platform_post_id: outstand?.platformPostId || null,
+    submitted_at: outstand ? new Date().toISOString() : null,
+  };
+
+  const { error: updateErr } = await supabase.from("linkedin_drafts").update(update).eq("id", draftId);
+  if (updateErr) throw new Error(`Schedule failed: ${updateErr.message}`);
+
+  return scheduledFor;
+}
+
 async function scheduleNext(supabase: any, draftId: number, appendToQueue = false) {
   const { data: scheduled } = await supabase
     .from("linkedin_drafts")
@@ -82,14 +149,7 @@ async function scheduleNext(supabase: any, draftId: number, appendToQueue = fals
     .map((r: any) => r.scheduled_for)
     .filter(Boolean);
   const nextSlot = appendToQueue ? getNextQueueSlot(existingDates) : getNextSlot(existingDates);
-
-  const { error } = await supabase.from("linkedin_drafts").update({
-    status: "Scheduled",
-    scheduled_for: nextSlot.toISOString(),
-  }).eq("id", draftId);
-  if (error) throw new Error(`Schedule failed: ${error.message}`);
-
-  return nextSlot.toISOString();
+  return await scheduleDraft(supabase, draftId, nextSlot.toISOString());
 }
 
 serve(async (req) => {
@@ -105,9 +165,12 @@ serve(async (req) => {
     );
 
     if (action === "reject") {
+      await cancelOutstandForDraft(supabase, draft_id);
       const { error } = await supabase.from("linkedin_drafts").update({
         status: "Rejected",
         scheduled_for: null,
+        outstand_status: null,
+        outstand_error: null,
       }).eq("id", draft_id);
       if (error) throw new Error(`Reject failed: ${error.message}`);
 
@@ -117,6 +180,7 @@ serve(async (req) => {
     }
 
     if (action === "delete") {
+      await cancelOutstandForDraft(supabase, draft_id);
       const { error } = await supabase.from("linkedin_drafts").delete().eq("id", draft_id);
       if (error) throw new Error(`Delete failed: ${error.message}`);
 
@@ -126,9 +190,14 @@ serve(async (req) => {
     }
 
     if (action === "unschedule") {
+      await cancelOutstandForDraft(supabase, draft_id);
       const { error } = await supabase.from("linkedin_drafts").update({
         status: "Pending Review",
         scheduled_for: null,
+        outstand_post_id: null,
+        outstand_status: null,
+        outstand_error: null,
+        platform_post_id: null,
       }).eq("id", draft_id);
       if (error) throw new Error(`Unschedule failed: ${error.message}`);
 
@@ -149,24 +218,42 @@ serve(async (req) => {
     if (publish_now) {
       const { data: row, error } = await supabase
         .from("linkedin_drafts")
-        .select("draft, image_url, first_comment")
+        .select("draft, image_url, first_comment, outstand_post_id")
         .eq("id", draft_id)
         .single();
       if (error || !row) throw new Error(`Draft not found: ${error?.message}`);
 
-      const cleanDraft = row.draft.replace(/\[IMAGE:.*?\]\s*/gi, "").trim();
-      const webhookRes = await fetch("https://hook.us2.make.com/zrpbixh6ougugpuusmo4f1y8i45qdyx2", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draft: cleanDraft, image_url: row.image_url || "", first_comment: row.first_comment || "" }),
-      });
-      if (!webhookRes.ok) throw new Error(`LinkedIn publish failed: ${webhookRes.status}`);
+      if (row.outstand_post_id && isOutstandConfigured()) {
+        await cancelOutstandForDraft(supabase, draft_id);
+      }
+
+      let outstand: Awaited<ReturnType<typeof createOutstandPost>> | null = null;
+      if (isOutstandConfigured()) {
+        outstand = await createOutstandPost({
+          post: row.draft,
+          imageUrl: row.image_url || "",
+          firstComment: row.first_comment || "",
+        });
+      } else {
+        const webhookRes = await fetch("https://hook.us2.make.com/zrpbixh6ougugpuusmo4f1y8i45qdyx2", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ draft: cleanPostText(row.draft), image_url: row.image_url || "", first_comment: row.first_comment || "" }),
+        });
+        if (!webhookRes.ok) throw new Error(`LinkedIn publish failed: ${webhookRes.status}`);
+      }
 
       const { error: updateErr } = await supabase.from("linkedin_drafts").update({
         status: "Published",
-        linkedin_post_id: "via-webhook",
+        linkedin_post_id: outstand?.platformPostId || outstand?.id || "via-webhook",
         scheduled_date: new Date().toISOString(),
         scheduled_for: null,
+        publishing_provider: outstand ? "outstand" : "make",
+        outstand_post_id: outstand?.id || null,
+        outstand_status: outstand?.status || null,
+        outstand_error: null,
+        platform_post_id: outstand?.platformPostId || null,
+        submitted_at: outstand ? new Date().toISOString() : null,
       }).eq("id", draft_id);
       if (updateErr) throw new Error(`Update failed: ${updateErr.message}`);
 
@@ -177,13 +264,9 @@ serve(async (req) => {
 
     // If custom scheduled_for provided, use it
     if (scheduled_for) {
-      const { error } = await supabase.from("linkedin_drafts").update({
-        status: "Scheduled",
-        scheduled_for: scheduled_for,
-      }).eq("id", draft_id);
-      if (error) throw new Error(`Schedule failed: ${error.message}`);
+      const scheduled = await scheduleDraft(supabase, draft_id, scheduled_for);
 
-      return new Response(JSON.stringify({ ok: true, scheduled_for }), {
+      return new Response(JSON.stringify({ ok: true, scheduled_for: scheduled }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
