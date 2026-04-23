@@ -165,8 +165,13 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 .calendar-event.published { background: #9e9e9e; color: #ffffff; opacity: 0.72; box-shadow: none; }
 .calendar-event:hover, .calendar-event:focus { z-index: 90; }
 .calendar-event:focus { outline: 2px solid #c7a7dc; outline-offset: 2px; }
+.calendar-event-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 2px; }
 .calendar-event-time { display: block; font-size: 10px; font-weight: 700; opacity: 0.9; margin-bottom: 2px; }
 .calendar-event-title { display: block; font-size: 11px; line-height: 1.25; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calendar-queue-badge { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; padding: 2px 5px; border-radius: 999px; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.26); font-size: 9px; font-weight: 700; letter-spacing: 0.2px; line-height: 1; white-space: nowrap; }
+.calendar-queue-badge::before { content: ''; width: 5px; height: 5px; border-radius: 999px; background: #99f6e4; box-shadow: 0 0 0 2px rgba(153,246,228,0.18); }
+.calendar-event.published .calendar-queue-badge { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.22); }
+.calendar-event.published .calendar-queue-badge::before { background: #d1d5db; box-shadow: none; }
 .calendar-preview { display: none; position: absolute; left: 0; top: calc(100% - 1px); width: min(380px, 80vw); max-height: min(520px, 72vh); overflow-y: auto; padding: 12px; background: #ffffff; color: #1a1a1a; border: 1px solid #d8d8d8; border-radius: 8px; box-shadow: 0 16px 40px rgba(0,0,0,0.18); z-index: 80; cursor: auto; }
 .calendar-preview.above { top: auto; bottom: calc(100% - 1px); }
 .calendar-preview.align-right { left: auto; right: 0; }
@@ -308,6 +313,15 @@ function renderDeliveryBadge(row) {
   const badge = getDeliveryBadge(row);
   if (!badge) return '';
   return `<span class="badge ${badge.className}" title="${escapeAttr(badge.title || badge.label)}">${escapeHtml(badge.label)}</span>`;
+}
+
+function renderCalendarQueueBadge(row) {
+  const provider = String(row.publishing_provider || '').toLowerCase();
+  const bufferStatus = String(row.buffer_status || '').toLowerCase();
+  if (provider === 'buffer' && ['scheduled', 'sending', 'sent'].includes(bufferStatus)) {
+    return `<span class="calendar-queue-badge" title="${escapeAttr(bufferStatus === 'sent' ? 'Queued in Buffer and already delivered' : 'Queued in Buffer')}">Buffer</span>`;
+  }
+  return '';
 }
 
 function findDraft(id) {
@@ -453,6 +467,7 @@ function renderCalendar() {
           const bucket = escapeHtml(row.bucket || 'N/A');
           const statusLabel = isPublished ? 'Posted' : 'Scheduled';
           const deliveryBadge = renderDeliveryBadge(row);
+          const queueBadge = renderCalendarQueueBadge(row);
           const image = row.image_url ? `<img class="calendar-preview-image" src="${escapeAttr(row.image_url)}" alt="">` : '';
           const firstComment = row.first_comment ? `<span class="first-comment" style="display:block;margin:10px 0 0"><span class="first-comment-header">First Comment</span><span class="first-comment-text">${escapeHtml(row.first_comment)}</span></span>` : '';
           const actions = isPublished ? '' : `
@@ -465,7 +480,10 @@ function renderCalendar() {
                 </span>`;
           return `
             <div class="calendar-event ${isPublished ? 'published' : 'scheduled'}" tabindex="0" aria-label="${attrTopic}" onmouseenter="positionCalendarPreview(this)" onfocus="positionCalendarPreview(this)">
-              <span class="calendar-event-time">${isPublished ? 'Posted' : formatScheduledTime(scheduled)}</span>
+              <span class="calendar-event-top">
+                <span class="calendar-event-time">${isPublished ? 'Posted' : formatScheduledTime(scheduled)}</span>
+                ${queueBadge}
+              </span>
               <span class="calendar-event-title">${topic}</span>
               <span class="calendar-preview">
                 <span class="calendar-preview-title">${topic}</span>
