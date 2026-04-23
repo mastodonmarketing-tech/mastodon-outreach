@@ -150,41 +150,8 @@ function createImageDescription(post: string, topic: string, pillar: string) {
   return `A designed LinkedIn social media graphic visualizing this post's core idea: ${hook} ${detail} Use a clean 16:9 social-post graphic style with bold composition, simple symbolic shapes, icon-like elements, layered cards, arrows, and visual hierarchy around ${pillarContext[pillar] || "business strategy, practical workflows, and decision-making"}. Make it feel like a polished brand graphic, not an editorial photo or stock image. Text-free design only: no readable words, letters, numbers, labels, logos, screenshots, or charts with labels. Do not render the topic words into the image. Use abstract lines and blocks anywhere text would normally appear.`;
 }
 
-function hashText(value: string) {
-  let hash = 2166136261;
-  for (let i = 0; i < value.length; i++) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
 function createFirstComment(post: string, topic: string, pillar: string) {
-  const clean = post
-    .replace(/\[IMAGE:[\s\S]*?\]/gi, "")
-    .replace(/Source:\s*https?:\/\/\S+/gi, "")
-    .replace(/#[A-Za-z0-9_]+/g, "")
-    .trim();
-  const pillarKey = pillar.toLowerCase();
-  const lower = `${topic} ${clean}`.toLowerCase();
-  const options = pillarKey.includes("ai") ? [
-    "The strongest AI pilots usually start with the outcome, the data source, and the human review step.",
-    "AI gets a lot more practical when it is attached to a real handoff your team already owns.",
-    "The tool matters less than the workflow you design around it.",
-  ] : pillarKey.includes("cro") || /landing|website|conversion|lead|page/.test(lower) ? [
-    "Small conversion wins usually come from removing one point of friction, not redesigning the whole site.",
-    "The useful question is not 'does the page look good?' It is 'does the next step feel obvious?'",
-    "A better landing page usually makes the decision easier before it asks for the form fill.",
-  ] : pillarKey.includes("marketing") || /marketing|seo|google|content|ad|campaign|search|social/.test(lower) ? [
-    "The best marketing systems make the next decision clearer, not just the report prettier.",
-    "Visibility is only useful when it turns into a cleaner path from attention to action.",
-    "Good campaigns get easier to scale when the message, audience, and follow-up all match.",
-  ] : [
-    "The strongest AI pilots usually start with the outcome, the data source, and the human review step.",
-    "AI gets a lot more practical when it is attached to a real handoff your team already owns.",
-    "The tool matters less than the workflow you design around it.",
-  ];
-  return options[hashText(`${topic}\n${clean}`) % options.length];
+  return "Interested in working with me? Take a short survey to see if we're a good fit. https://connect.mastodonmarketing.com/";
 }
 
 async function generatePostImage(supabase: any, draft: string, topic: string, pillar: string) {

@@ -61,6 +61,12 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 .badge-contractor { background: #f3e8ff; color: #6b21a8; }
 .badge-pending { background: #fff8e1; color: #f57f17; border: 1px solid #ffe082; }
 .badge-scheduled { background: #ede7f6; color: #553d67; border: 1px solid #ce93d8; }
+.badge-buffer { background: #eef6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.badge-buffer-scheduled { background: #ecfeff; color: #0f766e; border: 1px solid #99f6e4; }
+.badge-buffer-sending { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
+.badge-buffer-sent { background: #ecfdf5; color: #047857; border: 1px solid #86efac; }
+.badge-buffer-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
+.badge-make { background: #f5f3ff; color: #6d28d9; border: 1px solid #d8b4fe; }
 .scheduled-date { font-size: 13px; color: #553d67; font-weight: 600; margin-top: 4px; }
 .schedule-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 6px; }
@@ -167,6 +173,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 .calendar-event:hover .calendar-preview, .calendar-event:focus .calendar-preview { display: block; }
 .calendar-preview-title { display: block; font-size: 13px; line-height: 1.35; font-weight: 700; margin-bottom: 6px; color: #1a1a1a; }
 .calendar-preview-meta { display: block; font-size: 11px; font-weight: 700; color: #553d67; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.4px; }
+.calendar-preview-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
 .calendar-preview-image { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; border: 1px solid #e0e0e0; margin-bottom: 10px; display: block; }
 .calendar-preview-text { display: block; font-size: 12px; line-height: 1.55; color: #333333; white-space: pre-wrap; }
 .calendar-preview-actions { position: sticky; top: -12px; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 -12px 10px; padding: 10px 12px; background: #ffffff; border-bottom: 1px solid #eeeeee; box-shadow: 0 6px 12px rgba(255,255,255,0.95); }
@@ -279,6 +286,28 @@ function cleanDraftText(text) {
     .replace(/\[IMAGE:[^\]]+\]\s*/gi, '')
     .replace(/^Source:\s*https?:\/\/\S+\s*$/gim, '')
     .trim() : '';
+}
+
+function getDeliveryBadge(row) {
+  const provider = String(row.publishing_provider || '').toLowerCase();
+  const bufferStatus = String(row.buffer_status || '').toLowerCase();
+  if (provider === 'buffer') {
+    if (bufferStatus === 'error') return { label: 'Buffer Error', className: 'badge-buffer-error', title: row.buffer_error || 'Buffer reported an error' };
+    if (bufferStatus === 'sent') return { label: 'Buffer Sent', className: 'badge-buffer-sent', title: 'Published via Buffer' };
+    if (bufferStatus === 'sending') return { label: 'Buffer Sending', className: 'badge-buffer-sending', title: 'Buffer is sending this post' };
+    if (bufferStatus === 'scheduled') return { label: 'Buffer Queued', className: 'badge-buffer-scheduled', title: 'Scheduled in Buffer' };
+    return { label: 'Buffer', className: 'badge-buffer', title: 'Managed in Buffer' };
+  }
+  if (provider === 'make') {
+    return { label: 'Make', className: 'badge-make', title: 'Published via Make' };
+  }
+  return null;
+}
+
+function renderDeliveryBadge(row) {
+  const badge = getDeliveryBadge(row);
+  if (!badge) return '';
+  return `<span class="badge ${badge.className}" title="${escapeAttr(badge.title || badge.label)}">${escapeHtml(badge.label)}</span>`;
 }
 
 function findDraft(id) {
@@ -423,6 +452,7 @@ function renderCalendar() {
           const attrTopic = escapeAttr(row.topic || 'Untitled Draft');
           const bucket = escapeHtml(row.bucket || 'N/A');
           const statusLabel = isPublished ? 'Posted' : 'Scheduled';
+          const deliveryBadge = renderDeliveryBadge(row);
           const image = row.image_url ? `<img class="calendar-preview-image" src="${escapeAttr(row.image_url)}" alt="">` : '';
           const firstComment = row.first_comment ? `<span class="first-comment" style="display:block;margin:10px 0 0"><span class="first-comment-header">First Comment</span><span class="first-comment-text">${escapeHtml(row.first_comment)}</span></span>` : '';
           const actions = isPublished ? '' : `
@@ -440,6 +470,7 @@ function renderCalendar() {
               <span class="calendar-preview">
                 <span class="calendar-preview-title">${topic}</span>
                 <span class="calendar-preview-meta">${statusLabel} | ${bucket} | ${scheduled.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' })} at ${formatScheduledTime(scheduled)}</span>
+                ${deliveryBadge ? `<span class="calendar-preview-badges">${deliveryBadge}</span>` : ''}
                 ${actions}
                 ${image}
                 <span class="calendar-preview-text">${preview}</span>
@@ -524,6 +555,7 @@ function renderDrafts() {
           <div class="card-badges">
             <span class="badge badge-${(row.bucket||'').toLowerCase()}">${row.bucket || 'N/A'}</span>
             <span class="badge badge-${status}">${row.status || 'Pending Review'}</span>
+            ${renderDeliveryBadge(row)}
           </div>
         </div>
         <span class="card-date">${date}</span>
