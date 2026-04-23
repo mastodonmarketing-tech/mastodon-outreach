@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.rewrite]
 verify_jwt = false
+
+[functions.publish-scheduled]
+verify_jwt = false

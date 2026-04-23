@@ -267,12 +267,18 @@ function formatDraft(text) {
   if (!text) return '';
   let imageMatch = text.match(/\[IMAGE:([^\]]+)\]/i);
   let imageSuggestion = imageMatch ? imageMatch[1].trim() : null;
-  let clean = text.replace(/\[IMAGE:[^\]]+\]\s*/gi, '').trim();
+  let clean = text
+    .replace(/\[IMAGE:[^\]]+\]\s*/gi, '')
+    .replace(/^Source:\s*https?:\/\/\S+\s*$/gim, '')
+    .trim();
   return { clean: escapeHtml(clean), imageSuggestion };
 }
 
 function cleanDraftText(text) {
-  return text ? String(text).replace(/\[IMAGE:[^\]]+\]\s*/gi, '').trim() : '';
+  return text ? String(text)
+    .replace(/\[IMAGE:[^\]]+\]\s*/gi, '')
+    .replace(/^Source:\s*https?:\/\/\S+\s*$/gim, '')
+    .trim() : '';
 }
 
 function findDraft(id) {

@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildSocialGraphicPng } from "../_shared/social-graphic.ts";
+import {
+  isBufferConfigured,
+  upsertScheduledBufferPost,
+} from "../_shared/buffer.ts";
 
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -200,6 +204,32 @@ async function generatePostImage(supabase: any, draft: string, topic: string, pi
   }
 }
 
+async function resyncScheduledBuffer(
+  row: any,
+  draft: string,
+  imageUrl: string,
+  firstComment: string,
+) {
+  const isScheduled = String(row.status || "").toLowerCase().includes("scheduled") && row.scheduled_for;
+  if (!isScheduled || !isBufferConfigured()) return {};
+
+  const bufferPost = await upsertScheduledBufferPost(row.buffer_post_id, {
+    post: draft,
+    imageUrl,
+    firstComment,
+    scheduledAt: row.scheduled_for,
+  });
+
+  return {
+    publishing_provider: "buffer",
+    buffer_post_id: bufferPost.id,
+    buffer_status: bufferPost.status,
+    buffer_error: bufferPost.error || null,
+    platform_post_id: bufferPost.id,
+    submitted_at: new Date().toISOString(),
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -215,7 +245,7 @@ serve(async (req) => {
     // Get original draft
     const { data: row, error } = await supabase
       .from("linkedin_drafts")
-      .select("draft, topic, bucket, image_url, status, source_url, first_comment")
+      .select("draft, topic, bucket, image_url, status, source_url, first_comment, scheduled_for, buffer_post_id")
       .eq("id", draft_id)
       .single();
 
@@ -230,10 +260,16 @@ serve(async (req) => {
       const nextFirstComment = typeof first_comment === "string" && first_comment.trim()
         ? first_comment.trim()
         : row.first_comment || createFirstComment(editedDraft, row.topic || "", row.bucket || "");
+      const bufferFields = await resyncScheduledBuffer(
+        row,
+        editedDraft,
+        row.image_url || "",
+        nextFirstComment,
+      );
 
       const { error: updateErr } = await supabase
         .from("linkedin_drafts")
-        .update({ draft: editedDraft, first_comment: nextFirstComment })
+        .update({ draft: editedDraft, first_comment: nextFirstComment, ...bufferFields })
         .eq("id", draft_id);
       if (updateErr) throw new Error(`Update failed: ${updateErr.message}`);
 
@@ -245,10 +281,16 @@ serve(async (req) => {
     if (action === "regenerate_image") {
       const imageUrl = await generatePostImage(supabase, row.draft, row.topic || "", row.bucket || "");
       if (!imageUrl) throw new Error("Image generation failed");
+      const bufferFields = await resyncScheduledBuffer(
+        row,
+        row.draft,
+        imageUrl,
+        row.first_comment || "",
+      );
 
       const { error: updateErr } = await supabase
         .from("linkedin_drafts")
-        .update({ image_url: imageUrl })
+        .update({ image_url: imageUrl, ...bufferFields })
         .eq("id", draft_id);
       if (updateErr) throw new Error(`Update failed: ${updateErr.message}`);
 
@@ -334,11 +376,17 @@ ${newDraft}`;
 
     const imageUrl = await generatePostImage(supabase, newDraft, row.topic || "", row.bucket || "");
     const nextFirstComment = createFirstComment(newDraft, row.topic || "", row.bucket || "");
+    const bufferFields = await resyncScheduledBuffer(
+      row,
+      newDraft,
+      imageUrl || row.image_url || "",
+      nextFirstComment,
+    );
 
     // Update draft in Supabase
     const { error: updateErr } = await supabase
       .from("linkedin_drafts")
-      .update({ draft: newDraft, status: row.status || "Pending Review", notes: notes, image_url: imageUrl || row.image_url || null, first_comment: nextFirstComment })
+      .update({ draft: newDraft, status: row.status || "Pending Review", notes: notes, image_url: imageUrl || row.image_url || null, first_comment: nextFirstComment, ...bufferFields })
       .eq("id", draft_id);
 
     if (updateErr) throw new Error(`Update failed: ${updateErr.message}`);
