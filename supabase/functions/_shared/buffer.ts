@@ -3,6 +3,7 @@ export interface BufferPostInput {
   imageUrl?: string | null;
   firstComment?: string | null;
   scheduledAt?: string | null;
+  useQueue?: boolean;
   now?: boolean;
 }
 
@@ -77,16 +78,17 @@ function isFirstCommentPlanError(err: unknown) {
 }
 
 function createInput(input: BufferPostInput, includeFirstComment = true) {
+  const useQueue = !input.now && (input.useQueue || !input.scheduledAt);
   const body: Record<string, unknown> = {
     text: cleanPostText(input.post),
     channelId: Deno.env.get("BUFFER_CHANNEL_ID"),
     schedulingType: "automatic",
-    mode: input.now ? "shareNow" : "customScheduled",
+    mode: input.now ? "shareNow" : (useQueue ? "addToQueue" : "customScheduled"),
     source: "mastodon-outreach",
     aiAssisted: true,
   };
 
-  if (!input.now) body.dueAt = input.scheduledAt;
+  if (!input.now && !useQueue) body.dueAt = input.scheduledAt;
   if (input.imageUrl) {
     body.assets = { images: [{ url: input.imageUrl }] };
   }

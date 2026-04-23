@@ -793,7 +793,7 @@ function confirmApprove(id) {
   overlay.innerHTML = `
     <div class="confirm-box">
       <h3>Schedule for LinkedIn?</h3>
-      <p>This will add the post to your publishing queue. It will be auto-published at the next optimal time (weekdays, max 1/day).</p>
+      <p>This will add the post to Buffer's queue and let Buffer assign the next recommended posting time.</p>
       <div class="confirm-actions">
         <button class="btn btn-reject" onclick="this.closest('.confirm-overlay').remove()">Cancel</button>
         <button class="btn btn-approve" onclick="this.closest('.confirm-overlay').remove(); handleApprove(${id})">Schedule</button>

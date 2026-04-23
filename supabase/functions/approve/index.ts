@@ -13,30 +13,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Posting times in CT (UTC-5): varied across weekdays for better reach
-// Mon 9AM, Tue 8AM, Wed 9AM, Thu 8AM, Fri 9AM = UTC 14:00/13:00
+// Fallback queue timing when Buffer is unavailable.
 const SLOT_HOURS_UTC: Record<number, number> = {
-  1: 14, // Mon 9AM CT
-  2: 13, // Tue 8AM CT
-  3: 14, // Wed 9AM CT
-  4: 13, // Thu 8AM CT
-  5: 14, // Fri 9AM CT
+  1: 14,
+  2: 13,
+  3: 14,
+  4: 13,
+  5: 14,
 };
 
 function getNextSlot(existingDates: string[]): Date {
   const taken = new Set(existingDates.map(d => new Date(d).toISOString().split("T")[0]));
   const now = new Date();
   const candidate = new Date(now);
-
-  // Start from tomorrow
   candidate.setUTCDate(candidate.getUTCDate() + 1);
   candidate.setUTCMinutes(0, 0, 0);
 
-  // Find next weekday not already taken
   for (let i = 0; i < 30; i++) {
-    const day = candidate.getUTCDay(); // 0=Sun, 6=Sat
+    const day = candidate.getUTCDay();
     const dateStr = candidate.toISOString().split("T")[0];
-
     if (day >= 1 && day <= 5 && !taken.has(dateStr)) {
       candidate.setUTCHours(SLOT_HOURS_UTC[day] || 14);
       return candidate;
@@ -44,11 +39,10 @@ function getNextSlot(existingDates: string[]): Date {
     candidate.setUTCDate(candidate.getUTCDate() + 1);
   }
 
-  // Fallback: 7 days from now
-  const fb = new Date(now);
-  fb.setUTCDate(fb.getUTCDate() + 7);
-  fb.setUTCHours(14, 0, 0, 0);
-  return fb;
+  const fallback = new Date(now);
+  fallback.setUTCDate(fallback.getUTCDate() + 7);
+  fallback.setUTCHours(14, 0, 0, 0);
+  return fallback;
 }
 
 function getNextQueueSlot(existingDates: string[]): Date {
@@ -71,13 +65,17 @@ function getNextQueueSlot(existingDates: string[]): Date {
     candidate.setUTCDate(candidate.getUTCDate() + 1);
   }
 
-  const fb = new Date(latest);
-  fb.setUTCDate(fb.getUTCDate() + 7);
-  fb.setUTCHours(14, 0, 0, 0);
-  return fb;
+  const fallback = new Date(latest);
+  fallback.setUTCDate(fallback.getUTCDate() + 7);
+  fallback.setUTCHours(14, 0, 0, 0);
+  return fallback;
 }
 
 async function scheduleNext(supabase: any, draftId: number, appendToQueue = false) {
+  if (isBufferConfigured()) {
+    return await scheduleDraft(supabase, draftId, null, true);
+  }
+
   const { data: scheduled } = await supabase
     .from("linkedin_drafts")
     .select("id, scheduled_for")
@@ -110,7 +108,7 @@ async function cancelBufferForDraft(supabase: any, draftId: number) {
   }
 }
 
-async function scheduleDraft(supabase: any, draftId: number, scheduledFor: string) {
+async function scheduleDraft(supabase: any, draftId: number, scheduledFor?: string | null, useQueue = false) {
   const { data: row, error: rowError } = await supabase
     .from("linkedin_drafts")
     .select("draft, image_url, first_comment, buffer_post_id")
@@ -124,13 +122,19 @@ async function scheduleDraft(supabase: any, draftId: number, scheduledFor: strin
       post: row.draft,
       imageUrl: row.image_url || "",
       firstComment: row.first_comment || "",
-      scheduledAt: scheduledFor,
+      scheduledAt: scheduledFor || null,
+      useQueue,
     });
+  }
+
+  const resolvedScheduledFor = bufferPost?.dueAt || scheduledFor || null;
+  if (isBufferConfigured() && !resolvedScheduledFor) {
+    throw new Error("Buffer did not return a scheduled time");
   }
 
   const { error: updateError } = await supabase.from("linkedin_drafts").update({
     status: "Scheduled",
-    scheduled_for: scheduledFor,
+    scheduled_for: resolvedScheduledFor,
     publishing_provider: bufferPost ? "buffer" : "local",
     buffer_post_id: bufferPost?.id || null,
     buffer_status: bufferPost?.status || null,
@@ -140,7 +144,7 @@ async function scheduleDraft(supabase: any, draftId: number, scheduledFor: strin
   }).eq("id", draftId);
   if (updateError) throw new Error(`Schedule failed: ${updateError.message}`);
 
-  return scheduledFor;
+  return resolvedScheduledFor;
 }
 
 serve(async (req) => {
@@ -279,7 +283,7 @@ serve(async (req) => {
       });
     }
 
-    // Auto-schedule: find next open weekday slot
+    // Auto-schedule: let Buffer assign the next queue slot when available
     const next = await scheduleNext(supabase, draft_id);
 
     return new Response(JSON.stringify({ ok: true, scheduled_for: next }), {
