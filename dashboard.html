@@ -32,6 +32,9 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 
 /* Main */
 .main { max-width: 960px; margin: 0 auto; padding: 24px 24px 80px; }
+.system-note-wrap { max-width: 960px; margin: 0 auto; padding: 14px 24px 0; }
+.system-note { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #f8fbff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 8px; font-size: 13px; font-weight: 600; }
+.system-note-dot { width: 8px; height: 8px; border-radius: 999px; background: #10b981; flex-shrink: 0; }
 
 /* Empty state */
 .empty { text-align: center; padding: 100px 20px; }
@@ -233,6 +236,10 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
   <div class="tab" data-filter="calendar">Calendar <span class="tab-count" id="count-calendar">0</span></div>
   <div class="tab" data-filter="published">Published <span class="tab-count" id="count-published">0</span></div>
   <div class="tab" data-filter="rejected">Rejected <span class="tab-count" id="count-rejected">0</span></div>
+</div>
+
+<div class="system-note-wrap">
+  <div class="system-note"><span class="system-note-dot"></span><span>Buffer-only publishing is active for scheduling and posting.</span></div>
 </div>
 
 <div class="main" id="main">
