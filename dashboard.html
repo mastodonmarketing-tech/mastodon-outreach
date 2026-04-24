@@ -35,6 +35,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 .system-note-wrap { max-width: 960px; margin: 0 auto; padding: 14px 24px 0; }
 .system-note { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #f8fbff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 8px; font-size: 13px; font-weight: 600; }
 .system-note-dot { width: 8px; height: 8px; border-radius: 999px; background: #10b981; flex-shrink: 0; }
+.filter-note { margin-bottom: 14px; padding: 10px 12px; background: #f8fbff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 8px; font-size: 13px; font-weight: 600; }
 
 /* Empty state */
 .empty { text-align: center; padding: 100px 20px; }
@@ -76,6 +77,14 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 .badge-published { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
 .badge-rejected { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
 .card-date { font-size: 12px; color: #888888; white-space: nowrap; padding-top: 2px; }
+.admin-debug { margin: 12px 20px 16px; padding: 12px 14px; background: #f6f7fb; border: 1px solid #dde3f1; border-radius: 8px; }
+.admin-debug-header { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; margin-bottom: 8px; }
+.admin-debug-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+.admin-debug-item { min-width: 0; }
+.admin-debug-label { display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+.admin-debug-value { display: block; font-size: 12px; color: #1f2937; word-break: break-word; }
+.btn-buffer { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.btn-buffer:hover { background: #dbeafe; }
 
 /* Scores */
 .scores { display: flex; gap: 16px; padding: 0 20px 12px; }
@@ -186,6 +195,8 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 .calendar-preview-actions { position: sticky; top: -12px; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 -12px 10px; padding: 10px 12px; background: #ffffff; border-bottom: 1px solid #eeeeee; box-shadow: 0 6px 12px rgba(255,255,255,0.95); }
 .calendar-action { border: 1px solid #d8d8d8; background: #ffffff; color: #553d67; border-radius: 6px; padding: 5px 8px; font-size: 11px; font-weight: 700; font-family: inherit; cursor: pointer; }
 .calendar-action:hover { background: #f8f5fa; border-color: #553d67; }
+.calendar-action.buffer { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.calendar-action.buffer:hover { background: #dbeafe; border-color: #60a5fa; }
 .calendar-action.danger { color: #c62828; border-color: #ef9a9a; }
 .calendar-action.danger:hover { background: #ffebee; }
 .modal-textarea { width: 100%; min-height: 260px; padding: 12px; background: #fafafa; border: 1px solid #d0d0d0; border-radius: 8px; color: #1a1a1a; font-size: 13px; font-family: inherit; resize: vertical; line-height: 1.5; margin: 12px 0; }
@@ -249,6 +260,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 <script>
 const SUPABASE_URL = 'https://vaaudpclqxaqzlryhhlm.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_SHsVFBB_I639cZwJSM2NEQ_1RsFon5a';
+const BUFFER_PUBLISH_URL = 'https://publish.buffer.com';
 
 const hdrs = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
 const fnHdrs = { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' };
@@ -256,6 +268,14 @@ let allDrafts = [];
 let currentFilter = 'all';
 let calendarMonth = new Date();
 calendarMonth.setDate(1);
+const ADMIN_MODE = (() => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('admin') === '1') {
+    try { window.localStorage.setItem('mm_admin', '1'); } catch {}
+    return true;
+  }
+  return window.localStorage.getItem('mm_admin') === '1';
+})();
 
 // Tabs
 document.getElementById('tabs').addEventListener('click', e => {
@@ -318,6 +338,22 @@ function renderDeliveryBadge(row) {
   return `<span class="badge ${badge.className}" title="${escapeAttr(badge.title || badge.label)}">${escapeHtml(badge.label)}</span>`;
 }
 
+function hasBufferLink(row) {
+  return String(row.publishing_provider || '').toLowerCase() === 'buffer' || Boolean(row.buffer_post_id);
+}
+
+function openInBuffer(id) {
+  const row = findDraft(id);
+  if (!row || !hasBufferLink(row)) return;
+  window.open(BUFFER_PUBLISH_URL, '_blank', 'noopener');
+}
+
+function renderBufferButton(row, compact = false) {
+  if (!hasBufferLink(row)) return '';
+  const cls = compact ? 'calendar-action buffer' : 'btn btn-buffer btn-sm';
+  return `<button class="${cls}" type="button" onclick="${compact ? 'event.stopPropagation(); ' : ''}openInBuffer(${row.id})">Open in Buffer</button>`;
+}
+
 function renderCalendarQueueBadge(row) {
   const provider = String(row.publishing_provider || '').toLowerCase();
   const bufferStatus = String(row.buffer_status || '').toLowerCase();
@@ -329,6 +365,26 @@ function renderCalendarQueueBadge(row) {
 
 function findDraft(id) {
   return allDrafts.find(r => Number(r.id) === Number(id));
+}
+
+function renderAdminDebug(row) {
+  if (!ADMIN_MODE) return '';
+  const items = [
+    ['Provider', row.publishing_provider || 'n/a'],
+    ['Buffer Status', row.buffer_status || 'n/a'],
+    ['Buffer Post ID', row.buffer_post_id || 'n/a'],
+    ['Platform Post ID', row.platform_post_id || 'n/a'],
+    ['LinkedIn Post ID', row.linkedin_post_id || 'n/a'],
+    ['Submitted At', row.submitted_at ? new Date(row.submitted_at).toLocaleString('en-US') : 'n/a'],
+  ];
+  return `<div class="admin-debug"><div class="admin-debug-header">Admin Debug</div><div class="admin-debug-grid">${items.map(([label, value]) => `<div class="admin-debug-item"><span class="admin-debug-label">${escapeHtml(label)}</span><span class="admin-debug-value">${escapeHtml(value)}</span></div>`).join('')}</div></div>`;
+}
+
+function renderFilterNote() {
+  if (currentFilter === 'published') {
+    return `<div class="filter-note">Published posts in this view were sent via Buffer.</div>`;
+  }
+  return '';
 }
 
 function formatFeedback(fb) {
@@ -471,16 +527,39 @@ function renderCalendar() {
           const statusLabel = isPublished ? 'Posted' : 'Scheduled';
           const deliveryBadge = renderDeliveryBadge(row);
           const queueBadge = renderCalendarQueueBadge(row);
+          const bufferButton = renderBufferButton(row, true);
           const image = row.image_url ? `<img class="calendar-preview-image" src="${escapeAttr(row.image_url)}" alt="">` : '';
           const firstComment = row.first_comment ? `<span class="first-comment" style="display:block;margin:10px 0 0"><span class="first-comment-header">First Comment</span><span class="first-comment-text">${escapeHtml(row.first_comment)}</span></span>` : '';
-          const actions = isPublished ? '' : `
+          const actions = isPublished
+            ? (bufferButton ? `<span class="calendar-preview-actions">${bufferButton}</span>` : '')
+            : `
                 <span class="calendar-preview-actions">
+                  ${bufferButton}
                   <button class="calendar-action" type="button" onclick="event.stopPropagation(); openEditModal(${row.id})">Edit</button>
                   <button class="calendar-action" type="button" onclick="event.stopPropagation(); openRewriteModal(${row.id})">Rewrite</button>
                   <button class="calendar-action" type="button" onclick="event.stopPropagation(); regenerateImage(${row.id})">Regenerate Image</button>
                   <button class="calendar-action" type="button" onclick="event.stopPropagation(); rescheduleNext(${row.id})">Next Slot</button>
                   <button class="calendar-action danger" type="button" onclick="event.stopPropagation(); deleteDraft(${row.id})">Delete</button>
                 </span>`;
+          if (isPublished) {
+            return `
+            <div class="calendar-event ${isPublished ? 'published' : 'scheduled'}" tabindex="0" aria-label="${attrTopic}" onmouseenter="positionCalendarPreview(this)" onfocus="positionCalendarPreview(this)">
+              <span class="calendar-event-top">
+                <span class="calendar-event-time">${isPublished ? 'Posted' : formatScheduledTime(scheduled)}</span>
+                ${queueBadge}
+              </span>
+              <span class="calendar-event-title">${topic}</span>
+              <span class="calendar-preview">
+                <span class="calendar-preview-title">${topic}</span>
+                <span class="calendar-preview-meta">${statusLabel} | ${bucket} | ${scheduled.toLocaleDateString('en-US', { weekday:'long', month:'short', day:'numeric' })} at ${formatScheduledTime(scheduled)}</span>
+                ${deliveryBadge ? `<span class="calendar-preview-badges">${deliveryBadge}</span>` : ''}
+                ${actions}
+                ${image}
+                <span class="calendar-preview-text">${preview}</span>
+                ${firstComment}
+              </span>
+            </div>`;
+          }
           return `
             <div class="calendar-event ${isPublished ? 'published' : 'scheduled'}" tabindex="0" aria-label="${attrTopic}" onmouseenter="positionCalendarPreview(this)" onfocus="positionCalendarPreview(this)">
               <span class="calendar-event-top">
@@ -558,13 +637,14 @@ function renderDrafts() {
     return;
   }
 
-  main.innerHTML = filtered.map(row => {
+  const content = filtered.map(row => {
     const status = getStatus(row.status);
     const { clean, imageSuggestion } = formatDraft(row.draft);
     const date = row.created_at ? new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
     const qc = row.qc_score ? parseFloat(row.qc_score) : 0;
     const isPending = status === 'pending';
     const isScheduled = status === 'scheduled';
+    const isPublished = status === 'published';
     const schedDate = row.scheduled_for ? new Date(row.scheduled_for) : null;
     const schedStr = schedDate ? schedDate.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' }) + ' at ' + schedDate.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : '';
 
@@ -604,6 +684,7 @@ function renderDrafts() {
       ${row.qc_feedback ? `<div class="qc-section"><div class="qc-header">QC Feedback</div><div class="qc-text">${formatFeedback(row.qc_feedback)}</div></div>` : ''}
 
       ${row.notes ? `<div class="qc-section" style="border-color:rgba(85,61,103,0.15)"><div class="qc-header" style="color:#b794d0">Rewrite Notes</div><div class="qc-text">${escapeHtml(row.notes)}</div></div>` : ''}
+      ${renderAdminDebug(row)}
 
       ${isPending ? `
       <div class="rewrite-area" id="rewrite-area-${row.id}">
@@ -622,12 +703,22 @@ function renderDrafts() {
         <div class="schedule-actions">
           <input type="datetime-local" class="date-input" id="reschedule-${row.id}" value="${schedDate ? schedDate.toISOString().slice(0,16) : ''}">
           <button class="btn btn-rewrite btn-sm" onclick="reschedule(${row.id})">Update Date</button>
+          ${renderBufferButton(row)}
           <button class="btn btn-approve btn-sm" onclick="publishNow(${row.id})">Publish Now</button>
           <button class="btn btn-reject btn-sm" onclick="unschedule(${row.id})">Cancel</button>
         </div>
       </div>` : ''}
+
+      ${isPublished ? `
+      <div class="card-actions">
+        <div class="schedule-actions">
+          ${renderBufferButton(row)}
+        </div>
+      </div>` : ''}
     </div>`;
   }).join('');
+
+  main.innerHTML = `${renderFilterNote()}${content}`;
 }
 
 function showToast(msg, type) {
