@@ -1,13 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  cleanPostText,
   createBufferPost,
   getBufferPost,
   isBufferConfigured,
 } from "../_shared/buffer.ts";
-
-const MAKE_WEBHOOK = "https://hook.us2.make.com/zrpbixh6ougugpuusmo4f1y8i45qdyx2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,6 +19,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+    if (!isBufferConfigured()) throw new Error("Buffer publishing is not configured");
 
     // Find posts scheduled for now or earlier
     const now = new Date().toISOString();
@@ -77,78 +75,58 @@ serve(async (req) => {
       try {
         let update: Record<string, any> | null = null;
 
-        if (isBufferConfigured()) {
-          if (post.buffer_post_id) {
-            const bufferPost = await getBufferPost(post.buffer_post_id);
-            if (bufferPost.status === "sent") {
-              update = {
-                status: "Published",
-                linkedin_post_id: bufferPost.id,
-                scheduled_date: bufferPost.sentAt || new Date().toISOString(),
-                buffer_status: bufferPost.status,
-                buffer_error: null,
-                platform_post_id: bufferPost.id,
-              };
-            } else if (bufferPost.status === "error") {
-              await supabase.from("linkedin_drafts").update({
-                status: "Pending Review",
-                scheduled_for: null,
-                buffer_status: "error",
-                buffer_error: bufferPost.error || "Buffer reported a publishing error",
-              }).eq("id", post.id);
-              continue;
-            } else {
-              continue;
-            }
-          } else {
-            const bufferPost = await createBufferPost({
-              post: post.draft,
-              imageUrl: post.image_url || "",
-              firstComment: post.first_comment || "",
-              now: true,
-            });
-            if (bufferPost.status === "error") {
-              await supabase.from("linkedin_drafts").update({
-                status: "Pending Review",
-                scheduled_for: null,
-                publishing_provider: "buffer",
-                buffer_post_id: bufferPost.id,
-                buffer_status: bufferPost.status,
-                buffer_error: bufferPost.error || "Buffer reported a publishing error",
-                platform_post_id: bufferPost.id,
-                submitted_at: new Date().toISOString(),
-              }).eq("id", post.id);
-              continue;
-            }
+        if (post.buffer_post_id) {
+          const bufferPost = await getBufferPost(post.buffer_post_id);
+          if (bufferPost.status === "sent") {
             update = {
               status: "Published",
               linkedin_post_id: bufferPost.id,
               scheduled_date: bufferPost.sentAt || new Date().toISOString(),
+              buffer_status: bufferPost.status,
+              buffer_error: null,
+              platform_post_id: bufferPost.id,
+            };
+          } else if (bufferPost.status === "error") {
+            await supabase.from("linkedin_drafts").update({
+              status: "Pending Review",
+              scheduled_for: null,
+              buffer_status: "error",
+              buffer_error: bufferPost.error || "Buffer reported a publishing error",
+            }).eq("id", post.id);
+            continue;
+          } else {
+            continue;
+          }
+        } else {
+          const bufferPost = await createBufferPost({
+            post: post.draft,
+            imageUrl: post.image_url || "",
+            firstComment: post.first_comment || "",
+            now: true,
+          });
+          if (bufferPost.status === "error") {
+            await supabase.from("linkedin_drafts").update({
+              status: "Pending Review",
+              scheduled_for: null,
               publishing_provider: "buffer",
               buffer_post_id: bufferPost.id,
               buffer_status: bufferPost.status,
-              buffer_error: bufferPost.error || null,
+              buffer_error: bufferPost.error || "Buffer reported a publishing error",
               platform_post_id: bufferPost.id,
               submitted_at: new Date().toISOString(),
-            };
-          }
-        } else {
-          const webhookRes = await fetch(MAKE_WEBHOOK, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ draft: cleanPostText(post.draft), image_url: post.image_url || "", first_comment: post.first_comment || "" }),
-          });
-
-          if (!webhookRes.ok) {
-            console.error(`Webhook failed for ${post.id}: ${webhookRes.status}`);
+            }).eq("id", post.id);
             continue;
           }
-
           update = {
             status: "Published",
-            linkedin_post_id: "via-webhook",
-            scheduled_date: new Date().toISOString(),
-            publishing_provider: "make",
+            linkedin_post_id: bufferPost.id,
+            scheduled_date: bufferPost.sentAt || new Date().toISOString(),
+            publishing_provider: "buffer",
+            buffer_post_id: bufferPost.id,
+            buffer_status: bufferPost.status,
+            buffer_error: bufferPost.error || null,
+            platform_post_id: bufferPost.id,
+            submitted_at: new Date().toISOString(),
           };
         }
 
