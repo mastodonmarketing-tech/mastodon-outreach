@@ -34,43 +34,35 @@ serve(async (req) => {
     }
 
     const draft = drafts[0];
-    const cleanLines = draft.draft
-      .replace(/\[IMAGE:[\s\S]*?\]/gi, "")
-      .replace(/Source:\s*https?:\/\/\S+/gi, "")
-      .split("\n")
-      .map((line: string) => line.trim())
-      .filter((line: string) => line && !line.startsWith("#"));
-    const rawHook = (cleanLines[0] || "Business growth insight").split(/[.!?]/)[0].trim().split(" ").slice(0, 8).join(" ");
-    const hook = rawHook.replace(/\b(AI|A\.I\.|artificial intelligence|machine learning|neural|deep learning)\b/gi, "automation").replace(/\s{2,}/g, " ").trim();
     const allVisuals = [
-      "a sleek smartphone floating at an angle with glowing app notifications bursting out of the screen",
-      "a massive glowing power button hovering above a reflective surface with purple energy radiating from it",
-      "a 3D chess piece (king) made of glass standing on a digital grid board with strategic path lines",
-      "a rocket ship mid-launch with a purple exhaust trail curving upward against a starfield",
-      "a giant glowing lightbulb with miniature city buildings and factories visible inside it",
-      "a pair of hands cupping a floating holographic globe with data streams orbiting around it",
-      "a row of dominoes mid-fall with the last one transforming into a golden trophy",
-      "a massive lock being unlocked by a glowing key, with light pouring through the keyhole",
-      "a compass with a glowing needle pointing toward a dollar sign on a dark terrain map",
-      "a laptop with a giant magnet pulling in glowing lead icons and contact cards",
-      "a stopwatch frozen mid-tick with lightning bolts radiating outward showing speed",
-      "a stack of glowing building blocks assembling themselves into a skyscraper shape",
-      "a telescope pointed at a sky full of floating opportunity icons like charts, targets, and money",
-      "a conveyor belt transforming raw materials into polished gold bars in a modern factory",
-      "a dashboard steering wheel with a holographic heads-up display showing business metrics",
-      "a giant switch being flipped from OFF to ON with sparks and energy bursting outward",
-      "a parachute carrying a gift box descending through clouds toward a crowd of tiny people below",
-      "a bridge being built in real-time with glowing sections connecting two cliff edges",
-      "a vault door swinging open to reveal shelves of glowing strategy playbooks inside",
-      "a conductor's baton directing an orchestra of floating business tool icons in harmony",
+      "three translucent glass spheres of different sizes floating above a reflective dark surface, each sphere refracting purple and gold light",
+      "a large amethyst crystal cluster growing out of a dark obsidian base, with inner purple glow illuminating the facets",
+      "flowing silk ribbons in deep purple and white, twisting through the air in an elegant spiral formation",
+      "a single perfect water droplet frozen in mid-air above a still pool, creating concentric ripple rings below",
+      "a geometric origami crane made of reflective metallic purple paper, floating weightlessly",
+      "stacked smooth river stones balanced in a zen tower formation, each stone glowing with a faint purple aura at the edges",
+      "a nautilus shell cross-section revealing its golden spiral chambers, lit with warm purple ambient light",
+      "abstract flowing aurora borealis waves in purple, teal, and gold sweeping across a dark sky",
+      "a single white feather drifting downward with tiny purple sparks trailing behind it",
+      "interlocking hexagonal tiles in varying shades of purple and charcoal, some tiles raised and glowing at the seams",
+      "a glass hourglass with glowing purple sand mid-flow, suspended at an angle in empty space",
+      "a cluster of floating soap bubbles with iridescent purple and gold reflections on their surfaces",
+      "a blooming flower made entirely of frosted glass petals, with a warm purple light emanating from the center",
+      "a smooth marble sculpture of an abstract wave form, polished to a mirror finish with purple accent lighting",
+      "crystalline ice formations growing in geometric patterns on a dark surface, lit from within by purple light",
+      "a Japanese bonsai tree with glowing purple leaves, sitting on a floating stone platform",
+      "nested rings of polished metal orbiting each other at different angles like a gyroscope, with purple energy at the center",
+      "a paper lantern with intricate cutout patterns casting purple light patterns on surrounding darkness",
+      "volcanic glass obsidian shards arranged in a crown-like formation, edges glowing with molten purple light",
+      "a geometric terrarium globe containing a tiny purple-lit landscape with miniature mountains and trees",
     ];
     const visual = allVisuals[Math.floor(Math.random() * allVisuals.length)];
 
-    const imgPrompt = `Generate a 3D rendered object on a dark background: ${visual}
+    const imgPrompt = `Photo-realistic 3D render: ${visual}
 
-The object should be glossy and floating with subtle purple (#553d67) glow and lighting effects. Dark gradient background from black to deep purple (#553d67).
+Style: glossy surfaces, dramatic purple (#553d67) accent lighting, dark gradient background fading from black to deep purple. Floating in empty space. Clean, minimal, premium aesthetic.
 
-This is a visual-only image. Do NOT include any text, words, letters, numbers, labels, headlines, or typography of any kind. No brains, no neural networks, no circuit boards, no head shapes. Just the 3D object on the dark background with purple lighting. Clean, minimal, premium look.`;
+STRICT RULES: No text, no words, no letters, no numbers, no labels, no typography. No technology, no screens, no computers, no brains, no circuits, no robots, no AI symbols. Only render the exact object described above, nothing else.`;
 
     const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
