@@ -1,9 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildSocialGraphicPng } from "../_shared/social-graphic.ts";
+import { decode as base64Decode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+const OPENAI_KEY = Deno.env.get("OPEN_AI_AI_KEY") || "";
 const MIN_POST_WORDS = 180;
 const MAX_POST_WORDS = 340;
 const BANNED_PHRASES = [
@@ -374,30 +375,44 @@ ${draft}`;
     const qc = safeParseJson(qcRaw);
     const firstComment = createFirstComment(draft, item.topic, item.bucket);
 
-    // 5. Generate a text-free social graphic based on the post
+    // 5. Generate image using OpenAI gpt-image-1
     let imageUrl = "";
     try {
-      const fileName = `post-${Date.now()}.png`;
-      const supabaseStorage = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-      );
-      const bytes = buildSocialGraphicPng(draft, item.topic, item.bucket);
-      const { error: uploadErr } = await supabaseStorage.storage
-        .from("post-images")
-        .upload(fileName, bytes, { contentType: "image/png", upsert: true });
-
-      if (!uploadErr) {
-        const { data: urlData } = supabaseStorage.storage
+      const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${OPENAI_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-image-1",
+          prompt: `Professional LinkedIn post image: ${imageDescription}. Clean, modern, visually compelling. No text, words, letters, or numbers on the image. Business-appropriate, high quality.`,
+          n: 1,
+          size: "1536x1024",
+          quality: "high",
+        }),
+      });
+      const imgData = await imgRes.json();
+      if (imgRes.ok && imgData.data?.[0]?.b64_json) {
+        const fileName = `post-${Date.now()}.png`;
+        const supabaseStorage = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+        );
+        const bytes = base64Decode(imgData.data[0].b64_json);
+        const { error: uploadErr } = await supabaseStorage.storage
           .from("post-images")
-          .getPublicUrl(fileName);
-        imageUrl = urlData.publicUrl;
-      } else {
-        console.error("Social graphic upload failed:", uploadErr.message);
+          .upload(fileName, bytes, { contentType: "image/png", upsert: true });
+
+        if (!uploadErr) {
+          const { data: urlData } = supabaseStorage.storage
+            .from("post-images")
+            .getPublicUrl(fileName);
+          imageUrl = urlData.publicUrl;
+        }
       }
     } catch (imgErr) {
-      console.error("Social graphic generation failed:", (imgErr as Error).message);
-      // Continue without image - not a blocker
+      console.error("Image generation failed:", (imgErr as Error).message);
     }
 
     // 6. Insert into Supabase
