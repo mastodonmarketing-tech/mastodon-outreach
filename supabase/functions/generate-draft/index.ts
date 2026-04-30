@@ -416,11 +416,12 @@ This is a visual-only image. Do NOT include any text, words, letters, numbers, l
           "Authorization": `Bearer ${OPENAI_KEY}`,
         },
         body: JSON.stringify({
-          model: "gpt-image-1",
+          model: "dall-e-3",
           prompt: imgPrompt,
           n: 1,
           size: "1024x1024",
-          quality: "medium",
+          quality: "standard",
+          response_format: "b64_json",
         }),
       });
       const imgData = await imgRes.json();
