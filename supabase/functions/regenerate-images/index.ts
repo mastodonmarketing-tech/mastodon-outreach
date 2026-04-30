@@ -42,10 +42,36 @@ serve(async (req) => {
       .filter((line: string) => line && !line.startsWith("#"));
     const hook = cleanLines[0] || "Business growth insight";
     const lower = draft.draft.toLowerCase();
-    let visual = "3D rendered business icon";
-    if (/\bai\b|automat|workflow|artificial intelligence/i.test(lower)) visual = "3D rendered AI brain, neural network nodes, or glowing circuit board";
-    else if (/\bseo\b|google ads|marketing|social media/i.test(lower)) visual = "3D rendered megaphone, search bar, or analytics dashboard mockup";
-    else if (/\bcro\b|conversion|landing page|website design/i.test(lower)) visual = "3D rendered laptop with website wireframe or conversion funnel";
+    const aiVisuals = [
+      "a glowing robotic hand reaching toward a floating holographic interface",
+      "a sleek command terminal with flowing data streams and connected nodes",
+      "interlocking gears and cogs with glowing energy pulses running through them",
+      "a futuristic control panel with floating cards, toggles, and workflow arrows",
+      "a crystal-clear glass cube containing swirling light particles and data pathways",
+      "a holographic assistant avatar emerging from a smartphone screen",
+      "a network of glowing orbs connected by light beams forming a constellation",
+      "a speedometer dial maxed out with lightning bolts and efficiency arrows",
+    ];
+    const marketingVisuals = [
+      "a 3D rocket launching from a laptop screen trailing purple light",
+      "a glowing magnifying glass hovering over a search bar with rising graph lines",
+      "a megaphone emitting colorful sound waves that transform into dollar signs",
+      "a funnel with glowing leads flowing in and customers emerging at the bottom",
+      "a target with an arrow dead center surrounded by floating analytics cards",
+      "a globe with connection lines and social media notification bubbles",
+    ];
+    const croVisuals = [
+      "a laptop screen showing a sleek landing page with a giant glowing CTA button",
+      "a split-screen A/B test with one side glowing brighter than the other",
+      "a conversion funnel made of glass with glowing leads dropping through stages",
+      "a cursor clicking a button that explodes into upward-trending graph lines",
+      "a website wireframe floating in space with heat map color overlays",
+      "a smartphone and laptop side by side with synchronized dashboard metrics",
+    ];
+    let options = aiVisuals;
+    if (/\bseo\b|google ads|marketing|social media/i.test(lower)) options = marketingVisuals;
+    else if (/\bcro\b|conversion|landing page|website design/i.test(lower)) options = croVisuals;
+    const visual = options[Math.floor(Math.random() * options.length)];
 
     const imgPrompt = `Create a bold, modern social media graphic for LinkedIn. Style reference: dark gradient background transitioning from black to deep purple (#553d67).
 

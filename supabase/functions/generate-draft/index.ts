@@ -239,14 +239,43 @@ function createImageDescription(post: string, topic: string, pillar: string) {
     .map(line => line.trim())
     .filter(line => line && !line.startsWith("#"));
   const hook = cleanLines[0] || topic;
-  const detail = cleanLines.find(line => /\d|AI|sales|lead|customer|website|content|workflow|automation|traffic|conversion/i.test(line)) || cleanLines[1] || topic;
-  const pillarVisual: Record<string, string> = {
-    AI: "3D rendered AI brain, neural network nodes, glowing circuit board, or robotic arm icon",
-    MARKETING: "3D rendered megaphone, search bar, analytics dashboard mockup, or funnel icon",
-    CRO: "3D rendered laptop with website wireframe, conversion arrow, or landing page mockup",
-    CONTRACTOR: "3D rendered blueprint, hard hat, or CRM dashboard mockup",
+  const pillarVisuals: Record<string, string[]> = {
+    AI: [
+      "a glowing robotic hand reaching toward a floating holographic interface",
+      "a sleek command terminal with flowing data streams and connected nodes",
+      "interlocking gears and cogs with glowing energy pulses running through them",
+      "a futuristic control panel with floating cards, toggles, and workflow arrows",
+      "a crystal-clear glass cube containing swirling light particles and data pathways",
+      "a holographic assistant avatar emerging from a smartphone screen",
+      "a network of glowing orbs connected by light beams forming a constellation",
+      "a speedometer dial maxed out with lightning bolts and efficiency arrows",
+    ],
+    MARKETING: [
+      "a 3D rocket launching from a laptop screen trailing purple light",
+      "a glowing magnifying glass hovering over a search bar with rising graph lines",
+      "a megaphone emitting colorful sound waves that transform into dollar signs",
+      "a funnel with glowing leads flowing in and customers emerging at the bottom",
+      "a target with an arrow dead center surrounded by floating analytics cards",
+      "a globe with connection lines and social media notification bubbles",
+    ],
+    CRO: [
+      "a laptop screen showing a sleek landing page with a giant glowing CTA button",
+      "a split-screen A/B test with one side glowing brighter than the other",
+      "a conversion funnel made of glass with glowing leads dropping through stages",
+      "a cursor clicking a button that explodes into upward-trending graph lines",
+      "a website wireframe floating in space with heat map color overlays",
+      "a smartphone and laptop side by side with synchronized dashboard metrics",
+    ],
+    CONTRACTOR: [
+      "a hard hat sitting on a tablet displaying a project management dashboard",
+      "a blueprint unrolling to reveal a digital CRM interface beneath it",
+      "a toolbox opening to release floating digital marketing icons and charts",
+      "construction scaffolding forming the shape of a rising bar chart",
+    ],
   };
-  return JSON.stringify({ hook, detail, visual: pillarVisual[pillar] || "3D rendered business icon" });
+  const options = pillarVisuals[pillar] || pillarVisuals.AI;
+  const visual = options[Math.floor(Math.random() * options.length)];
+  return JSON.stringify({ hook, visual });
 }
 
 function createFirstComment(post: string, topic: string, pillar: string) {
