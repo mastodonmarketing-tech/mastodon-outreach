@@ -40,7 +40,8 @@ serve(async (req) => {
       .split("\n")
       .map((line: string) => line.trim())
       .filter((line: string) => line && !line.startsWith("#"));
-    const hook = (cleanLines[0] || "Business growth insight").split(/[.!?]/)[0].trim().split(" ").slice(0, 8).join(" ");
+    const rawHook = (cleanLines[0] || "Business growth insight").split(/[.!?]/)[0].trim().split(" ").slice(0, 8).join(" ");
+    const hook = rawHook.replace(/\b(AI|A\.I\.|artificial intelligence|machine learning|neural|deep learning)\b/gi, "automation").replace(/\s{2,}/g, " ").trim();
     const allVisuals = [
       "a sleek smartphone floating at an angle with glowing app notifications bursting out of the screen",
       "a massive glowing power button hovering above a reflective surface with purple energy radiating from it",
