@@ -66,23 +66,11 @@ serve(async (req) => {
     ];
     const visual = allVisuals[Math.floor(Math.random() * allVisuals.length)];
 
-    const imgPrompt = `Create a bold, modern social media graphic for LinkedIn. Style reference: dark gradient background transitioning from black to deep purple (#553d67).
+    const imgPrompt = `Generate a 3D rendered object on a dark background: ${visual}
 
-LAYOUT:
-- Large, bold white headline text at the top taking up 40% of the image. The text reads: "${hook}"
-- Below the text, include ${visual} as a glossy, floating 3D rendered object with subtle purple (#553d67) glow and lighting effects
-- Clean composition with plenty of negative space
-- No watermarks, no social media UI elements, no likes/comments icons
+The object should be glossy and floating with subtle purple (#553d67) glow and lighting effects. Dark gradient background from black to deep purple (#553d67).
 
-BANNED: Do NOT include any brains, neural networks, circuit boards, head silhouettes, or head-shaped objects.
-
-TEXT RULES: The ONLY text in the entire image is the headline above. No subtitles, no taglines, no CTAs, no URLs, no dates, no captions, no body text, no labels. Just the one short headline and the 3D visual. Nothing else.
-
-BRAND COLORS: Deep purple (#553d67), black (#000000), white (#ffffff). Purple is the accent color for glows, gradients, and highlights.
-
-TYPOGRAPHY: Bold, modern sans-serif font. White text on dark background. Keep it to one or two lines max.
-
-STYLE: Premium, polished social media graphic. 3D rendered elements with soft lighting. Dark, moody atmosphere with purple accent lighting. Minimal and clean.`;
+This is a visual-only image. Do NOT include any text, words, letters, numbers, labels, headlines, or typography of any kind. No brains, no neural networks, no circuit boards, no head shapes. Just the 3D object on the dark background with purple lighting. Clean, minimal, premium look.`;
 
     const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
