@@ -240,13 +240,13 @@ function createImageDescription(post: string, topic: string, pillar: string) {
     .filter(line => line && !line.startsWith("#"));
   const hook = cleanLines[0] || topic;
   const detail = cleanLines.find(line => /\d|AI|sales|lead|customer|website|content|workflow|automation|traffic|conversion/i.test(line)) || cleanLines[1] || topic;
-  const pillarContext: Record<string, string> = {
-    AI: "AI workflow automation, business operations, sales or customer-service handoffs, human review checkpoints, dashboard cards, connected nodes, and process arrows",
-    MARKETING: "search visibility, content strategy, customer research, analytics, demand generation, funnel shapes, channel icons, and campaign cards",
-    CRO: "website conversion paths, landing-page decisions, user behavior, lead capture, wireframe blocks, click paths, and conversion funnels",
-    CONTRACTOR: "business growth systems for construction or home-service teams, using clean process diagrams and CRM-style cards without jobsite cliches",
+  const pillarVisual: Record<string, string> = {
+    AI: "3D rendered AI brain, neural network nodes, glowing circuit board, or robotic arm icon",
+    MARKETING: "3D rendered megaphone, search bar, analytics dashboard mockup, or funnel icon",
+    CRO: "3D rendered laptop with website wireframe, conversion arrow, or landing page mockup",
+    CONTRACTOR: "3D rendered blueprint, hard hat, or CRM dashboard mockup",
   };
-  return `A designed LinkedIn social media graphic visualizing this post's core idea: ${hook} ${detail} Use a clean 16:9 social-post graphic style with bold composition, simple symbolic shapes, icon-like elements, layered cards, arrows, and visual hierarchy around ${pillarContext[pillar] || "business strategy, practical workflows, and decision-making"}. Make it feel like a polished brand graphic, not an editorial photo or stock image. Text-free design only: no readable words, letters, numbers, labels, logos, screenshots, or charts with labels. Do not render the topic words into the image. Use abstract lines and blocks anywhere text would normally appear.`;
+  return JSON.stringify({ hook, detail, visual: pillarVisual[pillar] || "3D rendered business icon" });
 }
 
 function createFirstComment(post: string, topic: string, pillar: string) {
@@ -378,6 +378,28 @@ ${draft}`;
     // 5. Generate image using OpenAI gpt-image-1
     let imageUrl = "";
     try {
+      let imgHook = "";
+      let imgVisual = "";
+      try {
+        const parsed = JSON.parse(imageDescription);
+        imgHook = parsed.hook || "";
+        imgVisual = parsed.visual || "";
+      } catch { imgHook = imageDescription; }
+
+      const imgPrompt = `Create a bold, modern social media graphic for LinkedIn. Style reference: dark gradient background transitioning from black to deep purple (#553d67).
+
+LAYOUT:
+- Large, bold white headline text at the top taking up 40% of the image. The text reads: "${imgHook}"
+- Below the text, include a relevant ${imgVisual} as a glossy, floating 3D rendered object with subtle purple (#553d67) glow and lighting effects
+- Clean composition with plenty of negative space
+- No watermarks, no social media UI elements, no likes/comments icons
+
+BRAND COLORS: Deep purple (#553d67), black (#000000), white (#ffffff). Purple is the accent color for glows, gradients, and highlights.
+
+TYPOGRAPHY: Bold, modern sans-serif font. White text on dark background. Make the headline text the dominant visual element.
+
+STYLE: Premium, polished social media graphic. Similar to high-engagement LinkedIn/Instagram carousel cover slides. 3D rendered elements with soft lighting. Dark, moody atmosphere with purple accent lighting.`;
+
       const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
         method: "POST",
         headers: {
@@ -386,9 +408,9 @@ ${draft}`;
         },
         body: JSON.stringify({
           model: "gpt-image-1",
-          prompt: `Professional LinkedIn post image: ${imageDescription}. Clean, modern, visually compelling. No text, words, letters, or numbers on the image. Business-appropriate, high quality.`,
+          prompt: imgPrompt,
           n: 1,
-          size: "1536x1024",
+          size: "1024x1536",
           quality: "high",
         }),
       });
