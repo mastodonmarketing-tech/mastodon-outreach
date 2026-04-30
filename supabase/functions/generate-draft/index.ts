@@ -238,7 +238,7 @@ function createImageDescription(post: string, topic: string, pillar: string) {
     .split("\n")
     .map(line => line.trim())
     .filter(line => line && !line.startsWith("#"));
-  const hook = cleanLines[0] || topic;
+  const hook = (cleanLines[0] || topic).split(/[.!?]/)[0].trim().split(" ").slice(0, 8).join(" ");
   const allVisuals = [
     "a sleek smartphone floating at an angle with glowing app notifications bursting out of the screen",
     "a massive glowing power button hovering above a reflective surface with purple energy radiating from it",
@@ -410,13 +410,15 @@ LAYOUT:
 - Clean composition with plenty of negative space
 - No watermarks, no social media UI elements, no likes/comments icons
 
-BANNED: Do NOT include any brains, neural networks, circuit boards, head silhouettes, or head-shaped objects. These are strictly forbidden.
+BANNED: Do NOT include any brains, neural networks, circuit boards, head silhouettes, or head-shaped objects.
+
+TEXT RULES: The ONLY text in the entire image is the headline above. No subtitles, no taglines, no CTAs, no URLs, no dates, no captions, no body text, no labels. Just the one short headline and the 3D visual. Nothing else.
 
 BRAND COLORS: Deep purple (#553d67), black (#000000), white (#ffffff). Purple is the accent color for glows, gradients, and highlights.
 
-TYPOGRAPHY: Bold, modern sans-serif font. White text on dark background. Make the headline text the dominant visual element.
+TYPOGRAPHY: Bold, modern sans-serif font. White text on dark background. Keep it to one or two lines max.
 
-STYLE: Premium, polished social media graphic. Similar to high-engagement LinkedIn/Instagram carousel cover slides. 3D rendered elements with soft lighting. Dark, moody atmosphere with purple accent lighting.`;
+STYLE: Premium, polished social media graphic. 3D rendered elements with soft lighting. Dark, moody atmosphere with purple accent lighting. Minimal and clean.`;
 
       const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
         method: "POST",
