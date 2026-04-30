@@ -41,45 +41,39 @@ serve(async (req) => {
       .map((line: string) => line.trim())
       .filter((line: string) => line && !line.startsWith("#"));
     const hook = cleanLines[0] || "Business growth insight";
-    const lower = draft.draft.toLowerCase();
-    const aiVisuals = [
-      "a glowing robotic hand reaching toward a floating holographic interface",
-      "a sleek command terminal with flowing data streams and connected nodes",
-      "interlocking gears and cogs with glowing energy pulses running through them",
-      "a futuristic control panel with floating cards, toggles, and workflow arrows",
-      "a crystal-clear glass cube containing swirling light particles and data pathways",
-      "a holographic assistant avatar emerging from a smartphone screen",
-      "a network of glowing orbs connected by light beams forming a constellation",
-      "a speedometer dial maxed out with lightning bolts and efficiency arrows",
+    const allVisuals = [
+      "a sleek smartphone floating at an angle with glowing app notifications bursting out of the screen",
+      "a massive glowing power button hovering above a reflective surface with purple energy radiating from it",
+      "a 3D chess piece (king) made of glass standing on a digital grid board with strategic path lines",
+      "a rocket ship mid-launch with a purple exhaust trail curving upward against a starfield",
+      "a giant glowing lightbulb with miniature city buildings and factories visible inside it",
+      "a pair of hands cupping a floating holographic globe with data streams orbiting around it",
+      "a row of dominoes mid-fall with the last one transforming into a golden trophy",
+      "a massive lock being unlocked by a glowing key, with light pouring through the keyhole",
+      "a compass with a glowing needle pointing toward a dollar sign on a dark terrain map",
+      "a laptop with a giant magnet pulling in glowing lead icons and contact cards",
+      "a stopwatch frozen mid-tick with lightning bolts radiating outward showing speed",
+      "a stack of glowing building blocks assembling themselves into a skyscraper shape",
+      "a telescope pointed at a sky full of floating opportunity icons like charts, targets, and money",
+      "a conveyor belt transforming raw materials into polished gold bars in a modern factory",
+      "a dashboard steering wheel with a holographic heads-up display showing business metrics",
+      "a giant switch being flipped from OFF to ON with sparks and energy bursting outward",
+      "a parachute carrying a gift box descending through clouds toward a crowd of tiny people below",
+      "a bridge being built in real-time with glowing sections connecting two cliff edges",
+      "a vault door swinging open to reveal shelves of glowing strategy playbooks inside",
+      "a conductor's baton directing an orchestra of floating business tool icons in harmony",
     ];
-    const marketingVisuals = [
-      "a 3D rocket launching from a laptop screen trailing purple light",
-      "a glowing magnifying glass hovering over a search bar with rising graph lines",
-      "a megaphone emitting colorful sound waves that transform into dollar signs",
-      "a funnel with glowing leads flowing in and customers emerging at the bottom",
-      "a target with an arrow dead center surrounded by floating analytics cards",
-      "a globe with connection lines and social media notification bubbles",
-    ];
-    const croVisuals = [
-      "a laptop screen showing a sleek landing page with a giant glowing CTA button",
-      "a split-screen A/B test with one side glowing brighter than the other",
-      "a conversion funnel made of glass with glowing leads dropping through stages",
-      "a cursor clicking a button that explodes into upward-trending graph lines",
-      "a website wireframe floating in space with heat map color overlays",
-      "a smartphone and laptop side by side with synchronized dashboard metrics",
-    ];
-    let options = aiVisuals;
-    if (/\bseo\b|google ads|marketing|social media/i.test(lower)) options = marketingVisuals;
-    else if (/\bcro\b|conversion|landing page|website design/i.test(lower)) options = croVisuals;
-    const visual = options[Math.floor(Math.random() * options.length)];
+    const visual = allVisuals[Math.floor(Math.random() * allVisuals.length)];
 
     const imgPrompt = `Create a bold, modern social media graphic for LinkedIn. Style reference: dark gradient background transitioning from black to deep purple (#553d67).
 
 LAYOUT:
 - Large, bold white headline text at the top taking up 40% of the image. The text reads: "${hook}"
-- Below the text, include a relevant ${visual} as a glossy, floating 3D rendered object with subtle purple (#553d67) glow and lighting effects
+- Below the text, include ${visual} as a glossy, floating 3D rendered object with subtle purple (#553d67) glow and lighting effects
 - Clean composition with plenty of negative space
 - No watermarks, no social media UI elements, no likes/comments icons
+
+BANNED: Do NOT include any brains, neural networks, circuit boards, head silhouettes, or head-shaped objects. These are strictly forbidden.
 
 BRAND COLORS: Deep purple (#553d67), black (#000000), white (#ffffff). Purple is the accent color for glows, gradients, and highlights.
 
