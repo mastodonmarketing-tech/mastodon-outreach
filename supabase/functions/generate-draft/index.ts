@@ -410,8 +410,8 @@ STYLE: Premium, polished social media graphic. Similar to high-engagement Linked
           model: "gpt-image-1",
           prompt: imgPrompt,
           n: 1,
-          size: "1024x1536",
-          quality: "high",
+          size: "1024x1024",
+          quality: "medium",
         }),
       });
       const imgData = await imgRes.json();
