@@ -238,32 +238,37 @@ function createImageDescription(post: string, topic: string, pillar: string) {
     .split("\n")
     .map(line => line.trim())
     .filter(line => line && !line.startsWith("#"));
-  const rawHook = (cleanLines[0] || topic).split(/[.!?]/)[0].trim().split(" ").slice(0, 8).join(" ");
-  const hook = rawHook.replace(/\b(AI|A\.I\.|artificial intelligence|machine learning|neural|deep learning)\b/gi, "automation").replace(/\s{2,}/g, " ").trim();
-  const allVisuals = [
-    "three translucent glass spheres of different sizes floating above a reflective dark surface, each sphere refracting purple and gold light",
-    "a large amethyst crystal cluster growing out of a dark obsidian base, with inner purple glow illuminating the facets",
-    "flowing silk ribbons in deep purple and white, twisting through the air in an elegant spiral formation",
-    "a single perfect water droplet frozen in mid-air above a still pool, creating concentric ripple rings below",
-    "a geometric origami crane made of reflective metallic purple paper, floating weightlessly",
-    "stacked smooth river stones balanced in a zen tower formation, each stone glowing with a faint purple aura at the edges",
-    "a nautilus shell cross-section revealing its golden spiral chambers, lit with warm purple ambient light",
-    "abstract flowing aurora borealis waves in purple, teal, and gold sweeping across a dark sky",
-    "a single white feather drifting downward with tiny purple sparks trailing behind it",
-    "interlocking hexagonal tiles in varying shades of purple and charcoal, some tiles raised and glowing at the seams",
-    "a glass hourglass with glowing purple sand mid-flow, suspended at an angle in empty space",
-    "a cluster of floating soap bubbles with iridescent purple and gold reflections on their surfaces",
-    "a blooming flower made entirely of frosted glass petals, with a warm purple light emanating from the center",
-    "a smooth marble sculpture of an abstract wave form, polished to a mirror finish with purple accent lighting",
-    "crystalline ice formations growing in geometric patterns on a dark surface, lit from within by purple light",
-    "a Japanese bonsai tree with glowing purple leaves, sitting on a floating stone platform",
-    "nested rings of polished metal orbiting each other at different angles like a gyroscope, with purple energy at the center",
-    "a paper lantern with intricate cutout patterns casting purple light patterns on surrounding darkness",
-    "volcanic glass obsidian shards arranged in a crown-like formation, edges glowing with molten purple light",
-    "a geometric terrarium globe containing a tiny purple-lit landscape with miniature mountains and trees",
+  const firstLine = (cleanLines[0] || topic).trim();
+  const hookSentence = firstLine.split(/[.!?]/)[0].trim();
+  const words = hookSentence.split(" ");
+  let line1 = words.slice(0, Math.min(4, Math.ceil(words.length / 2))).join(" ").toUpperCase();
+  let line2 = words.slice(Math.min(4, Math.ceil(words.length / 2))).join(" ").toUpperCase();
+  if (!line2) { line2 = line1; line1 = topic.split(" ").slice(0, 4).join(" ").toUpperCase(); }
+
+  const visualElements = [
+    "a dark terminal window with colored command-line text and a blinking cursor",
+    "a glowing dashboard with bar charts and upward-trending line graphs",
+    "a stylized smartphone screen showing a chat conversation with purple message bubbles",
+    "a digital calendar grid with highlighted dates and notification badges",
+    "a sleek laptop half-open with purple light emanating from the screen",
+    "a circular progress meter at 97% with purple neon glow",
+    "a speed gauge needle pointing to maximum with motion blur",
+    "a minimalist funnel diagram with glowing layers narrowing downward",
+    "a stylized clock face with fast-moving hands and motion trails",
+    "a floating credit card with holographic shine and contactless waves",
+    "a megaphone emitting colorful sound waves and notification icons",
+    "a magnifying glass over a glowing data grid with highlighted rows",
+    "a stack of coins growing into a bar chart with an upward arrow",
+    "a target bullseye with an arrow dead center and impact glow",
+    "a paper airplane trailing a dotted purple flight path",
+    "a chain link breaking apart with energy sparks at the break point",
+    "a toggle switch flipping from OFF to ON with purple electricity arcing",
+    "a rising bar chart with the last bar breaking through a ceiling line",
+    "a cursor arrow clicking a glowing purple CTA button",
+    "a gear mechanism with interconnected cogs turning in sync",
   ];
-  const visual = allVisuals[Math.floor(Math.random() * allVisuals.length)];
-  return JSON.stringify({ hook, visual });
+  const visual = visualElements[Math.floor(Math.random() * visualElements.length)];
+  return JSON.stringify({ line1, line2, visual });
 }
 
 function createFirstComment(post: string, topic: string, pillar: string) {
@@ -395,19 +400,28 @@ ${draft}`;
     // 5. Generate image using OpenAI gpt-image-1
     let imageUrl = "";
     try {
-      let imgHook = "";
+      let imgLine1 = "";
+      let imgLine2 = "";
       let imgVisual = "";
       try {
         const parsed = JSON.parse(imageDescription);
-        imgHook = parsed.hook || "";
+        imgLine1 = parsed.line1 || "";
+        imgLine2 = parsed.line2 || "";
         imgVisual = parsed.visual || "";
-      } catch { imgHook = imageDescription; }
+      } catch { imgLine1 = "BUSINESS GROWTH"; imgLine2 = "STARTS HERE."; }
 
-      const imgPrompt = `Photo-realistic 3D render: ${imgVisual}
+      const imgPrompt = `Design a bold LinkedIn social media graphic (square format).
 
-Style: glossy surfaces, dramatic purple (#553d67) accent lighting, dark gradient background fading from black to deep purple. Floating in empty space. Clean, minimal, premium aesthetic.
+LAYOUT:
+- Dark background: black to deep purple (#553d67) gradient with subtle geometric grid pattern
+- Top: small monospace accent text in purple, like a status line (e.g. "// RESULTS LOADING..." or ">> STATUS: LIVE")
+- Center: Big bold white headline text in heavy sans-serif font, all caps, taking up most of the image:
+  Line 1: "${imgLine1}"
+  Line 2: "${imgLine2}" (this line in purple #553d67 or lilac with a purple underline glow)
+- Bottom section: ${imgVisual}
+- Purple neon glow and lighting accents throughout
 
-STRICT RULES: No text, no words, no letters, no numbers, no labels, no typography. No technology, no screens, no computers, no brains, no circuits, no robots, no AI symbols. Only render the exact object described above, nothing else.`;
+STYLE: Bold, modern, high-contrast. Like a premium LinkedIn influencer carousel cover. Dark moody aesthetic with purple neon accents. The text should be the dominant element. No photos of people. No brains, no neural networks. No stock photo look.`;
 
       const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
         method: "POST",
@@ -416,11 +430,11 @@ STRICT RULES: No text, no words, no letters, no numbers, no labels, no typograph
           "Authorization": `Bearer ${OPENAI_KEY}`,
         },
         body: JSON.stringify({
-          model: "dall-e-3",
+          model: "gpt-image-1",
           prompt: imgPrompt,
           n: 1,
           size: "1024x1024",
-          quality: "standard",
+          quality: "medium",
           response_format: "b64_json",
         }),
       });
