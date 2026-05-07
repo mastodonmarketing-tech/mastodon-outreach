@@ -76,3 +76,49 @@ The active production setup depends on:
 ## Status
 
 Legacy Make / GoHighLevel publishing flow has been removed from the active app code.
+
+## Realtor Scraper (in development)
+
+A separate pipeline ingests sold listings from the top 10 US metros, ranks
+listing agents by closings per month, and enriches the top producers (10+
+closings/mo) with email, phone, and social profile URLs for outreach.
+
+Tables (see `supabase/migrations/20260507000000_add_realtor_scraper_tables.sql`):
+
+- `realtor_metros` - configurable list of target metros (seeded with top 10)
+- `realtors` - agent identity + contact info + enrichment status
+- `realtor_listings` - raw sold listings keyed to a realtor
+- `realtor_metro_stats` - rolling closings/volume aggregates per agent per metro
+
+Edge functions:
+
+- `scrape-sold-listings` - ingest sold listings via the configured data source
+  (RealEstateAPI.com by default; set `REALTOR_SOURCE=mock` for local dev) and
+  recompute per-agent stats
+- `enrich-realtors` - find email / phone / LinkedIn / Instagram / Facebook for
+  top producers using Serper.dev + Gemini
+- `top-realtors` - read API for the dashboard / outreach picker; supports JSON
+  and CSV output
+
+Required secrets in addition to those above: `REALESTATEAPI_KEY`,
+`SERPER_API_KEY`. See `.env.example`.
+
+Typical run:
+
+```bash
+# 1. Pull last 30 days of solds for all enabled metros, recompute stats
+curl -X POST $SUPABASE_URL/functions/v1/scrape-sold-listings \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"since_days": 30}'
+
+# 2. Enrich the top producers (>=10 closings/30d) that don't have contact info
+curl -X POST $SUPABASE_URL/functions/v1/enrich-realtors \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"min_closings": 10, "limit": 25}'
+
+# 3. Pull the resulting list (JSON or CSV)
+curl "$SUPABASE_URL/functions/v1/top-realtors?metro=austin&format=csv" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"
+```

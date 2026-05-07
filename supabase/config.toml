@@ -11,3 +11,12 @@ verify_jwt = false
 
 [functions.publish-scheduled]
 verify_jwt = false
+
+[functions.scrape-sold-listings]
+verify_jwt = false
+
+[functions.enrich-realtors]
+verify_jwt = false
+
+[functions.top-realtors]
+verify_jwt = false
