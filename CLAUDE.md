@@ -13,6 +13,12 @@ The current system is Supabase + Zernio based:
 5. `publish-scheduled` reconciles scheduled and in-flight Zernio posts.
 6. Zernio handles queue timing and multi-platform publishing.
 
+## Security
+
+- NEVER ask the user to paste API keys, secrets, tokens, or credentials in the chat.
+- Use secure alternatives: `read -s` for terminal input, environment variables, `supabase secrets set`, or direct CLI commands.
+- When checking if a secret is configured, ask yes/no questions instead of requesting the value.
+
 ## Key Conventions
 
 - Edge functions are written for Deno / Supabase.
