@@ -128,8 +128,8 @@ async function main() {
         method: "POST",
         headers,
         body: JSON.stringify({
-          fileName: file,
-          fileType: contentType,
+          filename: file,
+          contentType,
         }),
       });
 
