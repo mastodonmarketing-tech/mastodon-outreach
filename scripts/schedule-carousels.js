@@ -54,11 +54,11 @@ async function main() {
 
   // 1. List connected accounts
   console.log("Fetching connected accounts...");
-  const accountsRes = await fetch(`${ZERNIO_BASE}/users`, { headers });
+  const accountsRes = await fetch(`${ZERNIO_BASE}/accounts`, { headers });
   let accounts = [];
   if (accountsRes.ok) {
     const data = await accountsRes.json();
-    accounts = data.accounts || data.users?.[0]?.accounts || [];
+    accounts = data.accounts || data || [];
   }
 
   if (!accounts.length) {
@@ -122,16 +122,14 @@ async function main() {
           : ext === ".webp"
           ? "image/webp"
           : "image/jpeg";
-      const fileSize = fs.statSync(filePath).size;
 
       // Presign
       const presignRes = await fetch(`${ZERNIO_BASE}/media/presign`, {
         method: "POST",
         headers,
         body: JSON.stringify({
-          filename: file,
-          contentType,
-          size: fileSize,
+          fileName: file,
+          fileType: contentType,
         }),
       });
 
