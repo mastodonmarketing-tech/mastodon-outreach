@@ -250,7 +250,7 @@ body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f5f5; col
 </div>
 
 <div class="system-note-wrap">
-  <div class="system-note"><span class="system-note-dot"></span><span>Buffer-only publishing is active for scheduling and posting.</span></div>
+  <div class="system-note"><span class="system-note-dot"></span><span>Zernio publishing is active for scheduling and posting.</span></div>
 </div>
 
 <div class="main" id="main">
@@ -321,12 +321,19 @@ function cleanDraftText(text) {
 
 function getDeliveryBadge(row) {
   const provider = String(row.publishing_provider || '').toLowerCase();
-  const bufferStatus = String(row.buffer_status || '').toLowerCase();
+  const st = String(row.buffer_status || '').toLowerCase();
+  if (provider === 'zernio') {
+    if (st === 'failed') return { label: 'Zernio Error', className: 'badge-buffer-error', title: row.buffer_error || 'Zernio reported an error' };
+    if (st === 'published') return { label: 'Zernio Sent', className: 'badge-buffer-sent', title: 'Published via Zernio' };
+    if (st === 'pending' || st === 'publishing') return { label: 'Zernio Sending', className: 'badge-buffer-sending', title: 'Zernio is sending this post' };
+    if (st === 'scheduled') return { label: 'Zernio Queued', className: 'badge-buffer-scheduled', title: 'Scheduled in Zernio' };
+    return { label: 'Zernio', className: 'badge-buffer', title: 'Managed in Zernio' };
+  }
   if (provider === 'buffer') {
-    if (bufferStatus === 'error') return { label: 'Buffer Error', className: 'badge-buffer-error', title: row.buffer_error || 'Buffer reported an error' };
-    if (bufferStatus === 'sent') return { label: 'Buffer Sent', className: 'badge-buffer-sent', title: 'Published via Buffer' };
-    if (bufferStatus === 'sending') return { label: 'Buffer Sending', className: 'badge-buffer-sending', title: 'Buffer is sending this post' };
-    if (bufferStatus === 'scheduled') return { label: 'Buffer Queued', className: 'badge-buffer-scheduled', title: 'Scheduled in Buffer' };
+    if (st === 'error') return { label: 'Buffer Error', className: 'badge-buffer-error', title: row.buffer_error || 'Buffer reported an error' };
+    if (st === 'sent') return { label: 'Buffer Sent', className: 'badge-buffer-sent', title: 'Published via Buffer' };
+    if (st === 'sending') return { label: 'Buffer Sending', className: 'badge-buffer-sending', title: 'Buffer is sending this post' };
+    if (st === 'scheduled') return { label: 'Buffer Queued', className: 'badge-buffer-scheduled', title: 'Scheduled in Buffer' };
     return { label: 'Buffer', className: 'badge-buffer', title: 'Managed in Buffer' };
   }
   return null;
@@ -339,7 +346,8 @@ function renderDeliveryBadge(row) {
 }
 
 function hasBufferLink(row) {
-  return String(row.publishing_provider || '').toLowerCase() === 'buffer' || Boolean(row.buffer_post_id);
+  const p = String(row.publishing_provider || '').toLowerCase();
+  return (p === 'buffer' || p === 'zernio') || Boolean(row.buffer_post_id);
 }
 
 function openInBuffer(id) {
@@ -356,9 +364,12 @@ function renderBufferButton(row, compact = false) {
 
 function renderCalendarQueueBadge(row) {
   const provider = String(row.publishing_provider || '').toLowerCase();
-  const bufferStatus = String(row.buffer_status || '').toLowerCase();
-  if (provider === 'buffer' && ['scheduled', 'sending', 'sent'].includes(bufferStatus)) {
-    return `<span class="calendar-queue-badge" title="${escapeAttr(bufferStatus === 'sent' ? 'Queued in Buffer and already delivered' : 'Queued in Buffer')}">Buffer</span>`;
+  const st = String(row.buffer_status || '').toLowerCase();
+  if (provider === 'zernio' && ['scheduled', 'pending', 'publishing', 'published'].includes(st)) {
+    return `<span class="calendar-queue-badge" title="${escapeAttr(st === 'published' ? 'Published via Zernio' : 'Queued in Zernio')}">Zernio</span>`;
+  }
+  if (provider === 'buffer' && ['scheduled', 'sending', 'sent'].includes(st)) {
+    return `<span class="calendar-queue-badge" title="${escapeAttr(st === 'sent' ? 'Published via Buffer' : 'Queued in Buffer')}">Buffer</span>`;
   }
   return '';
 }
@@ -382,7 +393,7 @@ function renderAdminDebug(row) {
 
 function renderFilterNote() {
   if (currentFilter === 'published') {
-    return `<div class="filter-note">Published posts in this view were sent via Buffer.</div>`;
+    return `<div class="filter-note">Published posts in this view were sent via Zernio.</div>`;
   }
   return '';
 }
