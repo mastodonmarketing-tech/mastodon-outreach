@@ -67,7 +67,7 @@ async function main() {
   }
 
   // Filter to platforms that support image carousels
-  const skipPlatforms = ["tiktok", "snapchat", "whatsapp"];
+  const skipPlatforms = ["tiktok", "snapchat", "whatsapp", "youtube"];
   const compatibleAccounts = accounts.filter(
     (a) => !skipPlatforms.includes(a.platform)
   );
